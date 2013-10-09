@@ -17,5 +17,5 @@ Features to look forward to:
 * Several Performance Optimizations.
 * A Curses-like UI.
 
-This project is still in a proof-of-concept stage, so run it in a controlled environmentand expect things to change!
+This project is still in a proof-of-concept stage, so run it in a controlled environment and expect things to change.
 A lot of powerful features are coming!

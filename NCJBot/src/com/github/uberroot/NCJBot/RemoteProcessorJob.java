@@ -65,10 +65,13 @@ public class RemoteProcessorJob {
 	 * {@link ProcessorJob#dataReceived(RemoteNode, String, java.io.File)} method for the remote ProcessorJob class.</p>
 	 * 
 	 * @param data The data to send.
+	 * 
+	 * @throws IOException 
 	 */
 	//TODO: The socket code will probably be moved to RemoteNode or its proposed meta-class.
 	//TODO: The type for data will likely become an abstraction, allowing direct use of files and memory cached resources.
-	public void sendData(byte data[]){ //TODO: Enforce linkages between jobs and remote jobs to prevent spoofing
+	//TODO: This is functionality is repeated in RemoteNode
+	public void sendData(byte data[]) throws IOException{ //TODO: Enforce linkages between jobs and remote jobs to prevent spoofing
 		ProcessorJobWrapper t = (ProcessorJobWrapper) Thread.currentThread();
 		
 		//Create socket
@@ -77,8 +80,9 @@ public class RemoteProcessorJob {
 			s = new Socket(t.getSource().getIpAddress(), t.getSource().getListeningPort());
 		} catch (IOException e) {
 			//If here, either host doesn't exist, or is not listening on the port
-			System.err.println("Unable to connect");
-			return;
+			//System.err.println("Unable to connect");
+			s.close();
+			throw e;
 		}
 		
 		try {
@@ -110,7 +114,10 @@ public class RemoteProcessorJob {
 			s.getOutputStream().write("Goodbye.".getBytes());
 			s.close();
 		} catch (IOException e1) {
-			e1.printStackTrace();
+			throw e1;
+		}
+		finally{
+			s.close();
 		}
 	}
 }

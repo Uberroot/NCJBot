@@ -155,9 +155,8 @@ public class RemoteNode {
 		try {
 			md5d = MessageDigest.getInstance("MD5");
 		} catch (NoSuchAlgorithmException e2) {
-			// TODO Auto-generated catch block
-			//This should never happen
-			e2.printStackTrace();
+			new Exception("Unable to create unique hashes for RemoteNodes.", e2).printStackTrace();
+			ProcessorNode.quit();
 		}
 		byte hash[] = md5d.digest(toString().getBytes());
 		hashCode = 0;
@@ -172,16 +171,20 @@ public class RemoteNode {
 	 * 
 	 * @param ownerTid The thread id of the job sending the data.
 	 * @param data The data to send.
+	 * 
+	 * @throws IOException 
 	 */
 	//TODO: Derive ownerTid from the current thread (or use this signature in the proposed meta-class).
 	//TODO: Abstract the data storage and account for size and performance issues automatically
-	public void sendData(String ownerTid, byte[] data){
+	//TODO: This method should be merged with RemoteProcessorJob.sendData(byte[])
+	public void sendData(String ownerTid, byte[] data) throws IOException{
 		//Try to create socket
 		Socket s = null;
 		try {
 			s = new Socket(ipAddress, listeningPort);
 		} catch (IOException e) {
-			return; //TODO Change this to an exception
+			s.close();
+			throw e;
 		}
 		
 		try {
@@ -194,6 +197,7 @@ public class RemoteNode {
 			
 			if(!String.valueOf(buffer).trim().equals("I'm not dead yet.")){
 				System.err.println("Unable to return result");
+				//TODO Throw an exception when this occurs
 			}
 			else{
 				s.getOutputStream().write("I have results.".getBytes());
@@ -213,7 +217,10 @@ public class RemoteNode {
 			s.getOutputStream().write("Goodbye.".getBytes());
 			s.close();
 		} catch (IOException e1) {
-			e1.printStackTrace();
+			throw e1;
+		}
+		finally{
+			s.close();
 		}
 	}
 	

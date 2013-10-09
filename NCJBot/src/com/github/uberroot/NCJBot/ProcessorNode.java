@@ -54,6 +54,11 @@ public class ProcessorNode {
 	private static Watchdog watchdog;
 	
 	/**
+	 * <p>The thread that handles incoming socket communication.</p>
+	 */
+	private static ServerThread servThread;
+	
+	/**
 	 * <p>Initializes the node. This method initializes supporting threads for the node and runs the
 	 * command line interface for utilizing the node.</p>
 	 * 
@@ -89,7 +94,7 @@ public class ProcessorNode {
 		netMgr.start();
 		
 		//Open socket and respond to requests
-		ServerThread servThread = null;
+		servThread = null;
 		try{
 			servThread = new ServerThread(LISTEN_PORT);
 			servThread.start();
@@ -144,11 +149,7 @@ public class ProcessorNode {
 				}
 			}
 			else if(command.equalsIgnoreCase("QUIT")){
-				//TODO: Graceful network removal should occur, but may not be necessary for the current lazy communication model
-				if(servThread != null)
-					servThread.kill();
-				netMgr.interrupt();
-				watchdog.kill();
+				quit();
 				break;
 			}
 			else if(command.equalsIgnoreCase("SET PORT")){
@@ -165,6 +166,18 @@ public class ProcessorNode {
 				System.out.println("What?");
 		}
 		scan.close();
+	}
+	
+	/**
+	 * Closes all connections and threads and allows the node to gracefully quit.
+	 */
+	public static void quit(){
+		//TODO: Graceful network removal should occur, but may not be necessary for the current lazy communication model
+		if(servThread != null)
+			servThread.kill();
+		netMgr.interrupt();
+		watchdog.kill();
+		System.exit(0);
 	}
 	
 	/**
@@ -280,7 +293,7 @@ public class ProcessorNode {
 			});
 			jobThread.start();
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
+			//Either a bad path was provided, or the classloader cannot load the class.
 			e.printStackTrace();
 			return -1;
 		}

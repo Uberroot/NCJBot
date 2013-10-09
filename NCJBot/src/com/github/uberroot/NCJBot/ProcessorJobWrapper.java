@@ -1,6 +1,7 @@
 package com.github.uberroot.NCJBot;
 import java.io.File;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 
@@ -97,15 +98,14 @@ public class ProcessorJobWrapper extends Thread {
 	 * @param cleanup Whether the files created should be deleted after the job has completed
 	 * @param listener A ProcessorJobWrapperListener to handle events related to startup.
 	 * 
-	 * @throws InstantiationException
-	 * @throws IllegalAccessException
-	 * @throws ClassNotFoundException
 	 * @throws IOException
+	 * @throws ClassNotFoundException 
+	 * 
 	 */
 	//TODO: className and classPath could be combined
 	//TODO: a second constructor could be used (one without the source parameters), which could be used to infer that the job is local
 	//TODO: source and remotePID could be combined into a RemoteProcessorJob
-	public ProcessorJobWrapper(String className, File classPath, RemoteNode source, String remotePid, File initData, Watchdog watchdog, boolean cleanup, ProcessorJobWrapperStateListener listener) throws InstantiationException, IllegalAccessException, ClassNotFoundException, IOException{
+	public ProcessorJobWrapper(String className, File classPath, RemoteNode source, String remotePid, File initData, Watchdog watchdog, boolean cleanup, ProcessorJobWrapperStateListener listener) throws IOException, ClassNotFoundException{
 		super();
 		URL[] u = new URL[1];
 		u[0] = classPath.toURI().toURL();

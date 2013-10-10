@@ -161,28 +161,6 @@ public class ProcessorJobWrapper extends Thread {
 	}
 	
 	/**
-	 * <p>Gets the node that sent the ProcessorJob.</p>
-	 * 
-	 * @deprecated Use getSourceJob() instead.
-	 * @return The node that sent the ProcessorJob.
-	 */
-	@Deprecated
-	public RemoteNode getSource(){
-		return sourceJob.getSource(); //TODO: Make this return an immutable object
-	}
-	
-	/**
-	 * <p>Gets the thread ID of the remote job that sent this ProcessorJob.</p>
-	 * 
-	 * @deprecated Use getSourceJob() instead.
-	 * @return The thread ID of the remote job that sent this ProcessorJob.
-	 */
-	@Deprecated
-	public String getRemotePid(){
-		return sourceJob.getRemoteTid();
-	}
-	
-	/**
 	 * <p>Gets the path under which the ProcessorJob should create and access files.</p>
 	 * 
 	 * @return The path under which the ProcessorJob should create and access files.

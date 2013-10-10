@@ -77,11 +77,10 @@ public class RemoteProcessorJob {
 		//Create socket
 		Socket s = null;
 		try {
-			s = new Socket(t.getSource().getIpAddress(), t.getSource().getListeningPort());
+			s = new Socket(t.getSourceJob().getSource().getIpAddress(), t.getSourceJob().getSource().getListeningPort());
 		} catch (IOException e) {
 			//If here, either host doesn't exist, or is not listening on the port
 			//System.err.println("Unable to connect");
-			s.close();
 			throw e;
 		}
 		

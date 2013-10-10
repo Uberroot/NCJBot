@@ -41,26 +41,11 @@ public class RemoteNode {
 	 * @param ip IPv4 address or hostname of the machine running the node.
 	 * @param port TCP Port on which the node listens.
 	 * @throws UnknownHostException
-	 * @deprecated Use {@link RemoteNode#RemoteNode(String, int)} instead.
-	 */
-	//TODO: Hostname resolution doesn't seem to work every time.
-	public RemoteNode(String ip, String port) throws UnknownHostException{
-		setIpAddress(ip);
-		setListeningPort(port);
-		rehash();
-	}
-	
-	/**
-	 * Creates an instance of a RemoteNode with the host/port pair.
-	 * @param ip IPv4 address or hostname of the machine running the node.
-	 * @param port TCP Port on which the node listens.
-	 * @throws UnknownHostException
 	 */
 	//TODO: Hostname resolution doesn't seem to work every time.
 	public RemoteNode(String ip, int port) throws UnknownHostException{
 		setIpAddress(ip);
-		this.listeningPort = port;
-		rehash();
+		setListeningPort(port);
 	}
 	
 	//TODO: The following private setters may need to become public if asymmetric cryptography is used for identification, allowing nodes to become aware of ip address changes.
@@ -72,17 +57,6 @@ public class RemoteNode {
 	 */
 	private void setIpAddress(String ip) throws UnknownHostException{ //Should never hit the exception
 		ipAddress = InetAddress.getByName(ip);
-		//TODO: Should rehash() be called here?
-	}
-	
-	/**
-	 * Sets the TCP port used to connect to the remote node.
-	 * @param port The new TCP port.
-	 * @deprecated Use {@link RemoteNode#setListeningPort(int)} instead.
-	 */
-	private void setListeningPort(String port){
-		listeningPort = Integer.valueOf(port);
-		rehash();
 	}
 	
 	/**
@@ -183,7 +157,6 @@ public class RemoteNode {
 		try {
 			s = new Socket(ipAddress, listeningPort);
 		} catch (IOException e) {
-			s.close();
 			throw e;
 		}
 		

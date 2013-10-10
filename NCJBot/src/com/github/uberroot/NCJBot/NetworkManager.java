@@ -260,12 +260,12 @@ public class NetworkManager extends Thread{
 	
 	/**
 	 * <p>Finds a replacement node for the node given. In the event the given node cannot be reached, it will be
-	 * removed from the active node list. Otherwise, a node (possibly the one provided) will be randomly selected and returned.</p>
+	 * removed from the active node list. Otherwise, a different node will be randomly selected and returned.
+	 * If there are no nodes available to replace the one provided, this method will return null.</p>
 	 * 
 	 * @param r The node to replace.
 	 * @return A randomly selected node from the active node list.
 	 */
-	//TODO: If it is possible to connect to the node, another should be selected.
 	public RemoteNode getReplacement(RemoteNode r){
 		//See if r is offline
 		Socket s = null;
@@ -277,16 +277,21 @@ public class NetworkManager extends Thread{
 			activeNodes.remove(r);
 		}
 		try {
-			s.close();
+			if(s != null)
+				s.close();
 		} catch (IOException e) {
 			//This shouldn't happen. Assume the worst.
 			e.printStackTrace();
-			System.exit(-1);
+			ProcessorNode.quit();
 		}
 		
 		//Select a new node
 		Random rand = new Random();
-		//TODO: Possible bug: If the last node is removed, wouldn't an out of bounds exception occur?
-		return activeNodes.get(rand.nextInt(activeNodes.size())); 
+		ArrayList<RemoteNode> pool = new ArrayList<RemoteNode>(activeNodes);
+		pool.remove(r);
+		if(pool.size() > 0)
+			return pool.get(rand.nextInt(pool.size()));
+		else
+			return null;
 	}
 }

@@ -22,6 +22,11 @@ import java.security.NoSuchAlgorithmException;
 //TODO: Should InetSocketAddress be used?
 public class RemoteNode {
 	/**
+	 * <p>The running ProcessorNode instance.</p>
+	 */
+	private ProcessorNode node;
+	
+	/**
 	 * The port on which the node accepts new connections.
 	 */
 	private int listeningPort;
@@ -38,12 +43,14 @@ public class RemoteNode {
 	
 	/**
 	 * Creates an instance of a RemoteNode with the host/port pair.
+	 * @param node The running ProcessorNode instance.
 	 * @param ip IPv4 address or hostname of the machine running the node.
 	 * @param port TCP Port on which the node listens.
 	 * @throws UnknownHostException
 	 */
 	//TODO: Hostname resolution doesn't seem to work every time.
-	public RemoteNode(String ip, int port) throws UnknownHostException{
+	public RemoteNode(ProcessorNode node, String ip, int port) throws UnknownHostException{
+		this.node = node;
 		setIpAddress(ip);
 		setListeningPort(port);
 	}
@@ -130,7 +137,7 @@ public class RemoteNode {
 			md5d = MessageDigest.getInstance("MD5");
 		} catch (NoSuchAlgorithmException e2) {
 			new Exception("Unable to create unique hashes for RemoteNodes.", e2).printStackTrace();
-			ProcessorNode.quit();
+			node.quit();
 		}
 		byte hash[] = md5d.digest(toString().getBytes());
 		hashCode = 0;
@@ -177,7 +184,7 @@ public class RemoteNode {
 				in.read(buffer); //What did you find?
 				
 				//Send the listening port for this node to allow node identification
-				s.getOutputStream().write((ProcessorNode.getListenPort() + "\n").getBytes());
+				s.getOutputStream().write((node.getListenPort() + "\n").getBytes());
 				
 				//Send the remote(parent) process id, local process id
 				s.getOutputStream().write((ownerTid + "\n").getBytes());
@@ -233,7 +240,7 @@ public class RemoteNode {
 				in.read(buffer); //What will I need?
 				
 				//Send the listening port
-				s.getOutputStream().write((ProcessorNode.getListenPort() + "\n").getBytes());
+				s.getOutputStream().write((node.getListenPort() + "\n").getBytes());
 				
 				//Send the local process id and worker class name
 				s.getOutputStream().write((ownerTid + "\n").getBytes());
@@ -256,7 +263,7 @@ public class RemoteNode {
 				
 				//Await remote process id
 				ret= Integer.valueOf(in.readLine());
-				ProcessorNode.registerWatchdogReceiver(this);
+				node.registerWatchdogReceiver(this);
 			}
 			s.getOutputStream().write("Goodbye.".getBytes());
 		} catch (IOException e1) {

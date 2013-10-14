@@ -14,6 +14,11 @@ import java.net.SocketException;
 //TODO: Look into using SocketChannel for non-blocking socket handling
 public class ServerThread extends Thread{
 	/**
+	 * <p>The running ProcessorNode instance.</p>
+	 */
+	private ProcessorNode node;
+	
+	/**
 	 * <p>The port on which the server listens.</p>
 	 */
 	private int port;
@@ -31,10 +36,13 @@ public class ServerThread extends Thread{
 	/**
 	 * <p>Creates a ServerThread for handling incoming connections and automatically starts the 
 	 * listening on the port specified.</p>
+	 * 
+	 * @param node The running ProcessorNode instance.
 	 * @param port The port on which to listen.
 	 * @throws IOException
 	 */
-	public ServerThread(int port) throws IOException{
+	public ServerThread(ProcessorNode node, int port) throws IOException{
+		this.node = node;
 		this.port = port;
 		setName("Server Connection Dispatcher - " + port);
 		makeServerSock();
@@ -90,7 +98,7 @@ public class ServerThread extends Thread{
 			
 			//Dispatch the incoming connection to a new session handler
 			try{
-				ServerSessionHandler handler = new ServerSessionHandler(clientSock);
+				ServerSessionHandler handler = new ServerSessionHandler(node, clientSock);
 				handler.start();
 			} catch(OutOfMemoryError e){//Autorecover from resource consumption
 				System.err.println("Unable to create thread for new connection");

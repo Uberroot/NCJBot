@@ -30,148 +30,158 @@ public class ProcessorNode {
 	 */
 	//TODO: This should be replaced with an enumeration or other similar construct
 	//TODO: This needs to be implemented more completely
-	private static String status;
+	private String status;
 	
 	/**
 	 * <p>The NetworkManager for this node.</p>
 	 */
-	private static NetworkManager netMgr;
+	private NetworkManager netMgr;
 	
 	/**
 	 * <p>The port on which to listen for new connections.</p>
 	 */
 	//TODO: This should be moved to ServerThread
-	private static int LISTEN_PORT;
+	private int LISTEN_PORT;
 	
 	/**
 	 * <p>A Hashtable of all running jobs, keyed by thread id.</p>
 	 */
-	private static Hashtable<Long, ProcessorJob> jobs = new Hashtable<Long, ProcessorJob>();
+	private Hashtable<Long, ProcessorJob> jobs = new Hashtable<Long, ProcessorJob>();
 	
 	/**
 	 * <p>The Watchdog for monitoring remote nodes running locally initiated jobs.</p>
 	 */
-	private static Watchdog watchdog;
+	private Watchdog watchdog;
 	
 	/**
 	 * <p>The thread that handles incoming socket communication.</p>
 	 */
-	private static ServerThread servThread;
+	private ServerThread servThread;
+	
+	/**
+	 * <p>Entry point for the program. This loads the sole ProcessorNode instance.</p>
+	 * 
+	 * @see ProcessorNode#ProcessorNode()
+	 * @param args Command line arguments. This is ignored.
+	 * @throws IOException
+	 */
+	public static void main(String args[]) throws IOException{
+		new ProcessorNode();
+	}
 	
 	/**
 	 * <p>Initializes the node. This method initializes supporting threads for the node and runs the
 	 * command line interface for utilizing the node.</p>
 	 * 
-	 * @param args Command line arguements. This is ignored.
 	 * @throws IOException
 	 */
-	public static void main(String args[]) throws IOException{
+	private ProcessorNode() throws IOException{
 		//TODO: This setup will be replaced with a configuration file
 		
-		//Seed nodes. This will be replaced with a configuration file
-		ArrayList<RemoteNode> seedNodes = new ArrayList<RemoteNode>();
-		
-		Scanner scan = new Scanner(System.in);
-		System.out.print("Enter seed host: ");
-		String ip = scan.nextLine().trim();
-		System.out.print("Enter seed port: ");
-		seedNodes.add(new RemoteNode(ip, scan.nextInt()));
-		scan.nextLine();
-		
-		//Get params
-		System.out.print("Enter listening port: ");
-		LISTEN_PORT = scan.nextInt();
-		scan.nextLine();
-		
-		//Start the watchdog
-		System.out.print("Start watchdog...");
-		watchdog = new Watchdog();
-		watchdog.start();
-		System.out.println("done");
-		
-		//Run the network manager
-		netMgr = new NetworkManager(seedNodes);
-		netMgr.start();
-		
-		//Open socket and respond to requests
-		servThread = null;
-		try{
-			servThread = new ServerThread(LISTEN_PORT);
-			servThread.start();
-		} catch(IOException e){
-			System.err.println(e.getMessage());
-		}
-		
-		//Set the status to ready
-		status = "I'm not dead yet.";
-		
-		//Handle console input
-		//TODO: This is a rudimentary console for testing. This functionality should be moved to its own class.
-		//TODO: Look into lanterna (https://code.google.com/p/lanterna/) for creating the console. This should allow switching between panels and I/O splitting without a GUI
-		System.out.println("Console initialized... What would you like to do?");
-		while(true){
-			System.out.print("> ");
-			String command = scan.nextLine().trim();
-			if(command.equalsIgnoreCase("GET THREADS")){
-				Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-				System.out.println(threadSet.size() + " threads are running");
-				for(Thread t : threadSet){
-					System.out.println(t.getName());
-				}
-			}
-			else if(command.equalsIgnoreCase("GET NODES")){
-				List<RemoteNode> nodes = ProcessorNode.getActiveNodes();
-				String out = nodes.size() + " nodes are known\n";
-				for(RemoteNode n : nodes)
-					out += n.getIpAddress().toString() + ":" + n.getListeningPort() + "\n";
-				System.out.print(out);
-			}
-			else if(command.equalsIgnoreCase("STOP SERVER")){
-				if(servThread != null){
-					servThread.kill();
-					servThread = null;
-				}
-				else
-					System.err.println("The server is not running");
-			}
-			else if(command.equalsIgnoreCase("START SERVER")){
-				if(servThread != null && servThread.isRunning()){
-					System.err.println("The server is already running");
-					continue;
-				}
-				try{
-					servThread = new ServerThread(LISTEN_PORT);
-					servThread.start();
-				}
-				catch(IOException e){
-					System.err.println(e.getMessage());
-					System.err.println("Did you forget to stop the server?");
-				}
-			}
-			else if(command.equalsIgnoreCase("QUIT")){
-				quit();
-				break;
-			}
-			else if(command.equalsIgnoreCase("SET PORT")){
-				System.out.print("Enter the new port (restart server to apply): ");
+				//Seed nodes. This will be replaced with a configuration file
+				ArrayList<RemoteNode> seedNodes = new ArrayList<RemoteNode>();
+				
+				Scanner scan = new Scanner(System.in);
+				System.out.print("Enter seed host: ");
+				String ip = scan.nextLine().trim();
+				System.out.print("Enter seed port: ");
+				seedNodes.add(new RemoteNode(this, ip, scan.nextInt()));
+				scan.nextLine();
+				
+				//Get params
+				System.out.print("Enter listening port: ");
 				LISTEN_PORT = scan.nextInt();
 				scan.nextLine();
-			}
-			else if(command.equalsIgnoreCase("START JOB")){
-				System.out.println("Enter path to class");
-				File path = new File(scan.nextLine().trim());
-				startJob(path.getParent(), path.getName().replaceFirst("\\.class$", ""), new RemoteNode("127.0.0.1", LISTEN_PORT), null, null, false);
-			}
-			else
-				System.out.println("What?");
-		}
-		scan.close();
+				
+				//Start the watchdog
+				System.out.print("Start watchdog...");
+				watchdog = new Watchdog(this);
+				watchdog.start();
+				System.out.println("done");
+				
+				//Run the network manager
+				netMgr = new NetworkManager(this, seedNodes);
+				netMgr.start();
+				
+				//Open socket and respond to requests
+				servThread = null;
+				try{
+					servThread = new ServerThread(this, LISTEN_PORT);
+					servThread.start();
+				} catch(IOException e){
+					System.err.println(e.getMessage());
+				}
+				
+				//Set the status to ready
+				status = "I'm not dead yet.";
+				
+				//Handle console input
+				//TODO: This is a rudimentary console for testing. This functionality should be moved to its own class.
+				//TODO: Look into lanterna (https://code.google.com/p/lanterna/) for creating the console. This should allow switching between panels and I/O splitting without a GUI
+				System.out.println("Console initialized... What would you like to do?");
+				while(true){
+					System.out.print("> ");
+					String command = scan.nextLine().trim();
+					if(command.equalsIgnoreCase("GET THREADS")){
+						Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+						System.out.println(threadSet.size() + " threads are running");
+						for(Thread t : threadSet){
+							System.out.println(t.getName());
+						}
+					}
+					else if(command.equalsIgnoreCase("GET NODES")){
+						List<RemoteNode> nodes = getActiveNodes();
+						String out = nodes.size() + " nodes are known\n";
+						for(RemoteNode n : nodes)
+							out += n.getIpAddress().toString() + ":" + n.getListeningPort() + "\n";
+						System.out.print(out);
+					}
+					else if(command.equalsIgnoreCase("STOP SERVER")){
+						if(servThread != null){
+							servThread.kill();
+							servThread = null;
+						}
+						else
+							System.err.println("The server is not running");
+					}
+					else if(command.equalsIgnoreCase("START SERVER")){
+						if(servThread != null && servThread.isRunning()){
+							System.err.println("The server is already running");
+							continue;
+						}
+						try{
+							servThread = new ServerThread(this, LISTEN_PORT);
+							servThread.start();
+						}
+						catch(IOException e){
+							System.err.println(e.getMessage());
+							System.err.println("Did you forget to stop the server?");
+						}
+					}
+					else if(command.equalsIgnoreCase("QUIT")){
+						quit();
+						break;
+					}
+					else if(command.equalsIgnoreCase("SET PORT")){
+						System.out.print("Enter the new port (restart server to apply): ");
+						LISTEN_PORT = scan.nextInt();
+						scan.nextLine();
+					}
+					else if(command.equalsIgnoreCase("START JOB")){
+						System.out.println("Enter path to class");
+						File path = new File(scan.nextLine().trim());
+						startJob(path.getParent(), path.getName().replaceFirst("\\.class$", ""), new RemoteNode(this, "127.0.0.1", LISTEN_PORT), null, null, false);
+					}
+					else
+						System.out.println("What?");
+				}
+				scan.close();
 	}
 	
 	/**
 	 * Closes all connections and threads and allows the node to gracefully quit.
 	 */
-	public static void quit(){
+	public void quit(){
 		//TODO: Graceful network removal should occur, but may not be necessary for the current lazy communication model
 		if(servThread != null)
 			servThread.kill();
@@ -189,7 +199,7 @@ public class ProcessorNode {
 	 * </ul>
 	 * @return The current status string of the node.
 	 */
-	public static String getStatus(){
+	public String getStatus(){
 		return status;
 	}
 	
@@ -199,7 +209,7 @@ public class ProcessorNode {
 	 * @return A list of nodes known to be active on the network.
 	 */
 	//TODO: This will be removed in later versions in favor of direct access.
-	public static List<RemoteNode> getActiveNodes(){
+	public List<RemoteNode> getActiveNodes(){
 		return netMgr.getActiveNodes();
 	}
 	
@@ -209,7 +219,7 @@ public class ProcessorNode {
 	 * @return The current port on which the server socket should listen.
 	 */
 	//TODO: This should be moved to ServerThread
-	public static int getListenPort(){
+	public int getListenPort(){
 		return LISTEN_PORT;
 	}
 	
@@ -220,7 +230,7 @@ public class ProcessorNode {
 	 * @return False if the node already existed in the active node list, true if it did not.
 	 */
 	//TODO:This may be removed in favor of direct communication.
-	public static boolean addDiscoveredNode(RemoteNode rn){
+	public boolean addDiscoveredNode(RemoteNode rn){
 		watchdog.beaconed(rn);
 		return netMgr.addDiscoveredNode(rn);
 	}
@@ -233,7 +243,7 @@ public class ProcessorNode {
 	 */
 	//TODO: This should return a List<RemoteNode>, but that signature results in a NoSuchMethodError from jobs, even after recompiling against the new class
 	//TODO: This may be removed in favor of direct communication with NetworkManager.
-	public static List<RemoteNode> getNodes(int count){
+	public List<RemoteNode> getNodes(int count){
 		if(count == -1)
 			return getActiveNodes();
 		List<RemoteNode> ans = getActiveNodes();
@@ -241,7 +251,7 @@ public class ProcessorNode {
 		if(ans.size() == 0){
 			RemoteNode self = null;
 			try {
-				self = new RemoteNode("127.0.0.1", LISTEN_PORT);
+				self = new RemoteNode(this, "127.0.0.1", LISTEN_PORT);
 			} catch (UnknownHostException e) {
 				//THIS WILL NEVER HAPPEN
 			}
@@ -253,7 +263,7 @@ public class ProcessorNode {
 				if(i >= ans.size()){
 					i = -1;
 					try {
-						ret.add(new RemoteNode("127.0.0.1", LISTEN_PORT));
+						ret.add(new RemoteNode(this, "127.0.0.1", LISTEN_PORT));
 					} catch (UnknownHostException e) {}
 					continue;
 				}
@@ -276,10 +286,10 @@ public class ProcessorNode {
 	 */
 	//TODO: This should throw an exception on failure
 	//TODO: classPath and className should be combined for readability
-	public static long startJob(String classPath, String className, RemoteNode source, String remotePid, File initData, boolean cleanup){
+	public long startJob(String classPath, String className, RemoteNode source, String remotePid, File initData, boolean cleanup){
 		ProcessorJobWrapper jobThread = null;
 		try {
-			jobThread = new ProcessorJobWrapper(className, new File(classPath), source, remotePid, initData, watchdog, cleanup, new ProcessorJobWrapper.ProcessorJobWrapperStateListener(){
+			jobThread = new ProcessorJobWrapper(this, className, new File(classPath), source, remotePid, initData, watchdog, cleanup, new ProcessorJobWrapper.ProcessorJobWrapperStateListener(){
 				@Override
 				public void jobLoaded(ProcessorJobWrapper wrapper, ProcessorJob job) {
 					jobs.put(wrapper.getId(), job);
@@ -309,7 +319,7 @@ public class ProcessorNode {
 	 * @return The new node.
 	 */
 	//TODO:This may be removed in favor of direct communication.
-	public static RemoteNode getReplacement(RemoteNode r){
+	public RemoteNode getReplacement(RemoteNode r){
 		return netMgr.getReplacement(r);
 	}
 	
@@ -323,7 +333,7 @@ public class ProcessorNode {
 	 */
 	//TODO: sourcePID and source should be combined into a RemoteProcessorJob
 	//TODO: File use should be replaced with an abstraction to a stream or to a byte buffer or array
-	public static void sendData(String destPid, String sourcePid, RemoteNode source, File data){
+	public void sendData(String destPid, String sourcePid, RemoteNode source, File data){
 		ProcessorJob job = jobs.get(Long.valueOf(destPid));
 		if(job != null)
 			job.dataReceived(source, sourcePid, data);
@@ -334,7 +344,7 @@ public class ProcessorNode {
 	 * 
 	 * @param rn The discovered node.
 	 */
-	public static void announceFoundNode(RemoteNode rn){
+	public void announceFoundNode(RemoteNode rn){
 		Set<Long> keys = jobs.keySet();
 		for(Long key : keys){
 			ProcessorJob j = jobs.get(key);
@@ -350,7 +360,7 @@ public class ProcessorNode {
 	 * @param rn The node that failed.
 	 */
 	//TODO: Should a separate method be created for handling nodes that are found to be unreachable or shutting down?
-	public static void announceNodeFailure(RemoteNode rn){
+	public void announceNodeFailure(RemoteNode rn){
 		System.out.println("Node Failure: " + rn.getIpAddress().getHostAddress() + ":" + rn.getListeningPort());
 		Set<Long> keys = jobs.keySet();
 		for(Long key : keys){
@@ -368,7 +378,7 @@ public class ProcessorNode {
 	 * @see ProcessorNode#releaseWatchdogReceiver(RemoteNode)
 	 */
 	//TODO:This may be removed in favor of direct communication.
-	public static void registerWatchdogReceiver(RemoteNode rn){
+	public void registerWatchdogReceiver(RemoteNode rn){
 		watchdog.registerReceiver(rn);
 	}
 	
@@ -380,7 +390,7 @@ public class ProcessorNode {
 	 * @see ProcessorNode#registerWatchdogReceiver(RemoteNode)
 	 */
 	//TODO:This may be removed in favor of direct communication.
-	public static void releaseWatchdogReceiver(RemoteNode rn){
+	public void releaseWatchdogReceiver(RemoteNode rn){
 		watchdog.releaseReceiver(rn);
 	}
 }

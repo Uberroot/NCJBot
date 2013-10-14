@@ -18,6 +18,11 @@ import java.net.Socket;
  */
 public class RemoteProcessorJob {
 	/**
+	 * <p>The running ProcessorNode instance.</p>
+	 */
+	private ProcessorNode node;
+	
+	/**
 	 * <p>The remote node that is running the job.</p>
 	 */
 	//TODO: This may need to be mutable to implement replication-based failover.
@@ -33,10 +38,12 @@ public class RemoteProcessorJob {
 	/**
 	 * <p>Instantiates a new RemoteProcessorJob with the node running the job, as well as the thread id of the running job.</p>
 	 * 
+	 * @param node The running ProcessorNode instance.
 	 * @param source The RemoteNode that is running the job.
 	 * @param remoteTid The thread id of the remote job.
 	 */
-	public RemoteProcessorJob(RemoteNode source, String remoteTid){
+	public RemoteProcessorJob(ProcessorNode node, RemoteNode source, String remoteTid){
+		this.node = node;
 		this.source = source;
 		this.remoteTid = remoteTid;
 	}
@@ -100,7 +107,7 @@ public class RemoteProcessorJob {
 				in.read(buffer); //What did you find?
 				
 				//Send the listening port for this node to allow node identification
-				s.getOutputStream().write((ProcessorNode.getListenPort() + "\n").getBytes());
+				s.getOutputStream().write((node.getListenPort() + "\n").getBytes());
 				
 				//Send the remote(parent) process id, local process id
 				s.getOutputStream().write((remoteTid + "\n").getBytes());

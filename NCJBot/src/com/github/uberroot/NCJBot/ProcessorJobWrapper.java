@@ -17,6 +17,11 @@ import java.net.URLClassLoader;
  */
 public class ProcessorJobWrapper extends Thread {
 	/**
+	 * <p>The running ProcessorNode instance.</p>
+	 */
+	private ProcessorNode node;
+	
+	/**
 	 * <p>The ProcessorJob this ProcessorJobWrapper runs.</p>
 	 */
 	private ProcessorJob job;
@@ -89,6 +94,7 @@ public class ProcessorJobWrapper extends Thread {
 	/**
 	 * <p>Instantiates a ProccessorJobWrapper with the parameters needed to start a new ProcessorJob.</p>
 	 * 
+	 * @param node The running ProcessorNode instance.
 	 * @param className The name of the ProcessorJob subclass to load.
 	 * @param classPath The path to the directory that contains the ProcessorJob subclass class file.
 	 * @param source The node that sent the ProcessorJob to this node, or null if the job is to be created locally.
@@ -105,8 +111,10 @@ public class ProcessorJobWrapper extends Thread {
 	//TODO: className and classPath could be combined
 	//TODO: a second constructor could be used (one without the source parameters), which could be used to infer that the job is local
 	//TODO: source and remotePID could be combined into a RemoteProcessorJob
-	public ProcessorJobWrapper(String className, File classPath, RemoteNode source, String remotePid, File initData, Watchdog watchdog, boolean cleanup, ProcessorJobWrapperStateListener listener) throws IOException, ClassNotFoundException{
+	public ProcessorJobWrapper(ProcessorNode node, String className, File classPath, RemoteNode source, String remotePid, File initData, Watchdog watchdog, boolean cleanup, ProcessorJobWrapperStateListener listener) throws IOException, ClassNotFoundException{
 		super();
+		this.node = node;
+		
 		URL[] u = new URL[1];
 		u[0] = classPath.toURI().toURL();
 		URLClassLoader cl = new URLClassLoader(u);
@@ -121,7 +129,7 @@ public class ProcessorJobWrapper extends Thread {
 		this.cleanup =  cleanup;
 		this.listener = listener;
 		
-		this.sourceJob = new RemoteProcessorJob(source, remotePid);
+		this.sourceJob = new RemoteProcessorJob(node, source, remotePid);
 		this.classPath = classPath;
 		this.initData = initData;
 	}
@@ -176,5 +184,16 @@ public class ProcessorJobWrapper extends Thread {
 	 */
 	public RemoteProcessorJob getSourceJob(){
 		return sourceJob; //TODO: Make sure this is immutable, get rid of methods here that access this
+	}
+	
+	/**
+	 * <p>Retrieves the running ProcessorNode instance. This method will soon be deprecated in favor of one
+	 * that returns a limited-access object.</p>
+	 * 
+	 * @return the running ProcessorNode instance
+	 */
+	//TODO: Return a limited-access object
+	public ProcessorNode getNode(){
+		return node;
 	}
 }

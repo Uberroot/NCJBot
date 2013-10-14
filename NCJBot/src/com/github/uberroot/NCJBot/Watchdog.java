@@ -23,6 +23,11 @@ import java.util.Set;
  */
 public class Watchdog extends Thread {
 	/**
+	 * <p>The running ProcessorNode instance.</p>
+	 */
+	private ProcessorNode node;
+	
+	/**
 	 * <p>A table of the times remaining before a node should be beaconed, keyed by the node.</p>
 	 */
 	private final Hashtable<RemoteNode, Integer> toNotify;
@@ -49,8 +54,11 @@ public class Watchdog extends Thread {
 	
 	/**
 	 * <p>Instantiates a new Watchdog.</p>
+	 * 
+	 * @param node The running ProcessorNode instance.
 	 */
-	public Watchdog(){
+	public Watchdog(ProcessorNode node){
+		this.node = node;
 		toNotify = new Hashtable<RemoteNode, Integer>();
 		tnRetCount = new Hashtable<RemoteNode, Integer>();
 		expecting =  new Hashtable<RemoteNode, Integer>();
@@ -113,7 +121,7 @@ public class Watchdog extends Thread {
 						in.read(buffer);
 						
 						if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
-							String toSend = "I'm here.\n" + ProcessorNode.getListenPort();
+							String toSend = "I'm here.\n" + node.getListenPort();
 							s.getOutputStream().write(toSend.getBytes());
 							in.read(buffer); //To ensure flow control
 						}
@@ -145,7 +153,7 @@ public class Watchdog extends Thread {
 		for(RemoteNode rn : keys2){
 			if(expecting.get(rn) == 0){
 				//Announce the failure
-				ProcessorNode.announceNodeFailure(rn);
+				node.announceNodeFailure(rn);
 				
 				//Remove from watchdog
 				expecting.remove(rn);

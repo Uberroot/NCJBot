@@ -57,6 +57,11 @@ import java.util.Random;
 //TODO: This functionality will be moved away from it's own thread and into centralized timing
 public class NetworkManager extends Thread{
 	/**
+	 * <p>The running ProcessorNode instance.</p>
+	 */
+	private ProcessorNode node;
+	
+	/**
 	 * <p>The list of all nodes known to be active on the network.</p>
 	 */
 	private ArrayList<RemoteNode> activeNodes;
@@ -70,9 +75,12 @@ public class NetworkManager extends Thread{
 	 * <p>Initializes the NetworkManager with the given seed nodes. Each of the seed nodes will be contacted and queried for a
 	 * list of known nodes. The results of the queries will be combined into the active node list, including those
 	 * seeds that responded.</p>
+	 * 
+	 * @param node The running ProcessorNode instance.
 	 * @param seedNodes The initial list of nodes to query. These should be considered the entry points for the network.
 	 */
-	public NetworkManager(ArrayList<RemoteNode> seedNodes){
+	public NetworkManager(ProcessorNode node, ArrayList<RemoteNode> seedNodes){
+		this.node = node;
 		activeNodes = new ArrayList<RemoteNode>();
 		addedNodes = new ArrayList<RemoteNode>();
 		
@@ -114,12 +122,12 @@ public class NetworkManager extends Thread{
 								if(!ns.matches("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+"))
 									continue;
 								String[] pair = ns.split(":");
-								RemoteNode rn = new RemoteNode(pair[0], Integer.valueOf(pair[1]));
+								RemoteNode rn = new RemoteNode(node, pair[0], Integer.valueOf(pair[1]));
 								
 								//Add the new node to this node's active node list
 								if(!activeNodes.contains(rn)){
 									activeNodes.add(rn);
-									ProcessorNode.announceFoundNode(rn);
+									node.announceFoundNode(rn);
 								}
 							}
 							hasList = true;
@@ -178,7 +186,7 @@ public class NetworkManager extends Thread{
 						} catch (IOException e) {
 							//If here, either host doesn't exist, or is not listening on the port
 							System.out.println("Unable to connect");
-							ProcessorNode.announceNodeFailure(activeNodes.remove(i--));
+							node.announceNodeFailure(activeNodes.remove(i--));
 							continue;
 						}
 						
@@ -191,7 +199,7 @@ public class NetworkManager extends Thread{
 								
 								//Announce presence
 								if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
-									String toSend = "I'm here.\n" + ProcessorNode.getListenPort();
+									String toSend = "I'm here.\n" + node.getListenPort();
 									//System.out.println("..." + toSend + "...");
 									s.getOutputStream().write(toSend.getBytes());
 									
@@ -209,7 +217,7 @@ public class NetworkManager extends Thread{
 						} catch (IOException e) {
 							//The connection was interrupted for some reason...
 							System.out.println("Unable to determine node state");
-							ProcessorNode.announceNodeFailure(activeNodes.remove(i--));	
+							node.announceNodeFailure(activeNodes.remove(i--));	
 						}
 						 
 						//Close the socket
@@ -252,7 +260,7 @@ public class NetworkManager extends Thread{
 		if(!activeNodes.contains(rn)){
 			activeNodes.add(rn);
 			addedNodes.add(rn);
-			ProcessorNode.announceFoundNode(rn);
+			node.announceFoundNode(rn);
 			return true;
 		}
 		return false;
@@ -282,7 +290,7 @@ public class NetworkManager extends Thread{
 		} catch (IOException e) {
 			//This shouldn't happen. Assume the worst.
 			e.printStackTrace();
-			ProcessorNode.quit();
+			node.quit();
 		}
 		
 		//Select a new node

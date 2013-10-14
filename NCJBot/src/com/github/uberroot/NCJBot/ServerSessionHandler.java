@@ -18,6 +18,11 @@ import java.util.Random;
 //TODO: The multithreaded approach may be replaced with socket channels
 public class ServerSessionHandler extends Thread{
 	/**
+	 * <p>The running ProcessorNode instance.</p>
+	 */
+	private ProcessorNode node;
+	
+	/**
 	 * <p>A simple counter for the handlers that spawn, allowing for identification of individual server sessions.</p>
 	 */
 	private static int idcount = 0;
@@ -30,9 +35,11 @@ public class ServerSessionHandler extends Thread{
 	/**
 	 * <p>Instantiates a ServerSessionHandler with a socket to use for client communication.</p>
 	 * 
+	 * @param node The running ProcessorNode instance.
 	 * @param clientSock A socket for client communication.
 	 */
-	public ServerSessionHandler(Socket clientSock){
+	public ServerSessionHandler(ProcessorNode node, Socket clientSock){
+		this.node = node;
 		this.clientSock = clientSock;
 		setName("Server Session Handler " + idcount++ + " (" + clientSock.getInetAddress() + ":" + clientSock.getPort() + ")");
 	}
@@ -62,14 +69,14 @@ public class ServerSessionHandler extends Thread{
 				break;
 			if(String.valueOf(cBuffer).trim().equals("Are you alive?")){
 				try {
-					clientSock.getOutputStream().write(ProcessorNode.getStatus().getBytes());
+					clientSock.getOutputStream().write(node.getStatus().getBytes());
 				} catch (IOException e) {
 					System.err.println("Unable to respond.");
 				}
 			}
 			else if(String.valueOf(cBuffer).trim().equals("Who do you know?")){
 				try {
-					List<RemoteNode> nodes = ProcessorNode.getActiveNodes();
+					List<RemoteNode> nodes = node.getActiveNodes();
 					String toSend = "\n";
 					for(RemoteNode n : nodes)
 						toSend += n.getIpAddress().getHostAddress() + ":" + n.getListeningPort() + "\n";
@@ -82,8 +89,8 @@ public class ServerSessionHandler extends Thread{
 			else if(String.valueOf(cBuffer).trim().matches("I'm here.\n\\d+")){
 				String port = String.valueOf(cBuffer).trim().split("\n")[1];
 				try {
-					RemoteNode rn = new RemoteNode(clientSock.getInetAddress().getHostAddress(), Integer.valueOf(port));
-					if(ProcessorNode.addDiscoveredNode(rn)){
+					RemoteNode rn = new RemoteNode(node, clientSock.getInetAddress().getHostAddress(), Integer.valueOf(port));
+					if(node.addDiscoveredNode(rn)){
 						System.out.println("Found new node: " + rn.getIpAddress().toString() + ":" + port);
 						clientSock.getOutputStream().write("Got it.".getBytes());
 					}
@@ -99,8 +106,8 @@ public class ServerSessionHandler extends Thread{
 				String connString = String.valueOf(cBuffer).trim().split("\n")[1];
 				try {
 					String[] pair = connString.split(":");
-					RemoteNode rn = new RemoteNode(pair[0], Integer.valueOf(pair[1]));
-					if(ProcessorNode.addDiscoveredNode(rn)){
+					RemoteNode rn = new RemoteNode(node, pair[0], Integer.valueOf(pair[1]));
+					if(node.addDiscoveredNode(rn)){
 						System.out.println("Found new node: " + pair[0] + ":" + pair[1]);
 						clientSock.getOutputStream().write("Got it.".getBytes());
 					}
@@ -120,8 +127,8 @@ public class ServerSessionHandler extends Thread{
 					int remotePort = Integer.valueOf(readLine(in).trim());
 					
 					//Add the remote node to the known list if it does not exist
-					RemoteNode rn = new RemoteNode(clientSock.getInetAddress().getHostAddress(), remotePort);
-					ProcessorNode.addDiscoveredNode(rn);
+					RemoteNode rn = new RemoteNode(node, clientSock.getInetAddress().getHostAddress(), remotePort);
+					node.addDiscoveredNode(rn);
 					
 					//Get the remote process id
 					long remoteId = Long.valueOf(readLine(in).trim());
@@ -168,7 +175,7 @@ public class ServerSessionHandler extends Thread{
 					
 					//Run the job
 					
-					long id = ProcessorNode.startJob(dirLoc, workerName, rn, Long.toString(remoteId), new File(dirLoc + "initData"), true);
+					long id = node.startJob(dirLoc, workerName, rn, Long.toString(remoteId), new File(dirLoc + "initData"), true);
 					
 					//Return the id
 					clientSock.getOutputStream().write((id + "\n").getBytes());
@@ -184,8 +191,8 @@ public class ServerSessionHandler extends Thread{
 					int remotePort = Integer.valueOf(readLine(in).trim());
 					
 					//Add the remote node to the known list if it does not exist
-					RemoteNode rn = new RemoteNode(clientSock.getInetAddress().getHostAddress(), remotePort);
-					ProcessorNode.addDiscoveredNode(rn);
+					RemoteNode rn = new RemoteNode(node, clientSock.getInetAddress().getHostAddress(), remotePort);
+					node.addDiscoveredNode(rn);
 					
 					//Get the destination processes id
 					String destPid = readLine(in).trim();
@@ -223,7 +230,7 @@ public class ServerSessionHandler extends Thread{
 					fos.close();
 					
 					//Send the data to the process
-					ProcessorNode.sendData(destPid, sourcePid, rn, dataFile);
+					node.sendData(destPid, sourcePid, rn, dataFile);
 					
 					//Cleanup the file
 					dataFile.delete();

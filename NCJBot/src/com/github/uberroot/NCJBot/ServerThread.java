@@ -12,6 +12,7 @@ import java.net.SocketException;
  *
  */
 //TODO: Look into using SocketChannel for non-blocking socket handling
+//TODO: It should not be possible to instantiate this from any class but ProcessorNode. (Security)
 public class ServerThread extends Thread{
 	/**
 	 * <p>The running ProcessorNode instance.</p>

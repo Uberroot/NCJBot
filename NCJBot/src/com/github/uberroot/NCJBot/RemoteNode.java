@@ -263,7 +263,7 @@ public class RemoteNode {
 				
 				//Await remote process id
 				ret= Integer.valueOf(in.readLine());
-				node.registerWatchdogReceiver(this);
+				node.getWatchdog().registerReceiver(this);
 			}
 			s.getOutputStream().write("Goodbye.".getBytes());
 		} catch (IOException e1) {

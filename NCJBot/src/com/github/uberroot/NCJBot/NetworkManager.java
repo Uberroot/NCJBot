@@ -3,6 +3,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -301,5 +302,41 @@ public class NetworkManager extends Thread{
 			return pool.get(rand.nextInt(pool.size()));
 		else
 			return null;
+	}
+	
+	/**
+	 * <p>Gets requested number of nodes, wrapping the list around when not enough are known to create a list of unique nodes.</p>
+	 * 
+	 * @param count The number of nodes to retrieve. A value of -1 indicates the entire node list should be retrieved.
+	 * @return A list of <i>count</i> remote nodes.
+	 */
+	public List<RemoteNode> getNodes(int count){
+		if(count == -1)
+			return getActiveNodes();
+		List<RemoteNode> ans = getActiveNodes();
+		ArrayList<RemoteNode> ret = new ArrayList<RemoteNode>();
+		if(ans.size() == 0){
+			RemoteNode self = null;
+			try {
+				self = new RemoteNode(node, "127.0.0.1", node.getListenPort());
+			} catch (UnknownHostException e) {
+				//THIS WILL NEVER HAPPEN
+			}
+			for(int i = 0; i < count; i++)
+				ret.add(self);
+		}
+		else{
+			for(int i = 0, added = 0; added < count; i++, added++){
+				if(i >= ans.size()){
+					i = -1;
+					try {
+						ret.add(new RemoteNode(node, "127.0.0.1", node.getListenPort()));
+					} catch (UnknownHostException e) {}
+					continue;
+				}
+				ret.add(ans.get(i));
+			}
+		}
+		return Collections.unmodifiableList(ret);
 	}
 }

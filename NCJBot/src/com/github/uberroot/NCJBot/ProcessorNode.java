@@ -1,13 +1,13 @@
 package com.github.uberroot.NCJBot;
 import java.io.File;
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Scanner;
 import java.util.Set;
+
+import com.github.uberroot.NCJBot.api.ProcessorJob;
 
 
 /**
@@ -22,7 +22,6 @@ import java.util.Set;
  * 
  * @author Carter Waxman
  */
-//TODO: A single instance of ProcessorNode will be created and shared amongst the other classes to enforce encapsulation
 //TODO: Should the ProcessorJob management functionality be in its own class?
 public class ProcessorNode {
 	/**
@@ -41,7 +40,7 @@ public class ProcessorNode {
 	 * <p>The port on which to listen for new connections.</p>
 	 */
 	//TODO: This should be moved to ServerThread
-	private int LISTEN_PORT;
+	private int listenPort;
 	
 	/**
 	 * <p>A Hashtable of all running jobs, keyed by thread id.</p>
@@ -65,6 +64,7 @@ public class ProcessorNode {
 	 * @param args Command line arguments. This is ignored.
 	 * @throws IOException
 	 */
+	//TODO: This can be run from anywhere, any time.
 	public static void main(String args[]) throws IOException{
 		new ProcessorNode();
 	}
@@ -90,11 +90,11 @@ public class ProcessorNode {
 				
 				//Get params
 				System.out.print("Enter listening port: ");
-				LISTEN_PORT = scan.nextInt();
+				listenPort = scan.nextInt();
 				scan.nextLine();
 				
 				//Start the watchdog
-				System.out.print("Start watchdog...");
+				System.out.print("Starting watchdog...");
 				watchdog = new Watchdog(this);
 				watchdog.start();
 				System.out.println("done");
@@ -104,9 +104,10 @@ public class ProcessorNode {
 				netMgr.start();
 				
 				//Open socket and respond to requests
+				//TODO: This access pattern should change. The socket should be created outside of the thread that queries it.
 				servThread = null;
 				try{
-					servThread = new ServerThread(this, LISTEN_PORT);
+					servThread = new ServerThread(this, listenPort);
 					servThread.start();
 				} catch(IOException e){
 					System.err.println(e.getMessage());
@@ -130,7 +131,7 @@ public class ProcessorNode {
 						}
 					}
 					else if(command.equalsIgnoreCase("GET NODES")){
-						List<RemoteNode> nodes = getActiveNodes();
+						List<RemoteNode> nodes = netMgr.getActiveNodes();
 						String out = nodes.size() + " nodes are known\n";
 						for(RemoteNode n : nodes)
 							out += n.getIpAddress().toString() + ":" + n.getListeningPort() + "\n";
@@ -144,13 +145,14 @@ public class ProcessorNode {
 						else
 							System.err.println("The server is not running");
 					}
+					//TODO: Should this force a presence announcement / node info update?
 					else if(command.equalsIgnoreCase("START SERVER")){
 						if(servThread != null && servThread.isRunning()){
 							System.err.println("The server is already running");
 							continue;
 						}
 						try{
-							servThread = new ServerThread(this, LISTEN_PORT);
+							servThread = new ServerThread(this, listenPort);
 							servThread.start();
 						}
 						catch(IOException e){
@@ -162,15 +164,17 @@ public class ProcessorNode {
 						quit();
 						break;
 					}
+					//TODO: Should this force a presence announcement / node info update?
+					//TODO: A transitional phase should occur when changing ports to finish running jobs before restarting and accepting new jobs
 					else if(command.equalsIgnoreCase("SET PORT")){
 						System.out.print("Enter the new port (restart server to apply): ");
-						LISTEN_PORT = scan.nextInt();
+						listenPort = scan.nextInt();
 						scan.nextLine();
 					}
 					else if(command.equalsIgnoreCase("START JOB")){
 						System.out.println("Enter path to class");
 						File path = new File(scan.nextLine().trim());
-						startJob(path.getParent(), path.getName().replaceFirst("\\.class$", ""), new RemoteNode(this, "127.0.0.1", LISTEN_PORT), null, null, false);
+						startJob(path.getParent(), path.getName().replaceFirst("\\.class$", ""), new RemoteNode(this, "127.0.0.1", listenPort), null, null, false);
 					}
 					else
 						System.out.println("What?");
@@ -204,23 +208,14 @@ public class ProcessorNode {
 	}
 	
 	/**
-	 * <p>Gets a list of nodes known to be active on the network.</p>
-	 * 
-	 * @return A list of nodes known to be active on the network.
-	 */
-	//TODO: This will be removed in later versions in favor of direct access.
-	public List<RemoteNode> getActiveNodes(){
-		return netMgr.getActiveNodes();
-	}
-	
-	/**
 	 * <p>Gets the current port on which the server socket should listen.</p>
 	 * 
 	 * @return The current port on which the server socket should listen.
 	 */
-	//TODO: This should be moved to ServerThread
+	//TODO: This should be moved to ServerThread.
+	//TODO: A distinction should be made between the current port and the configured port.
 	public int getListenPort(){
-		return LISTEN_PORT;
+		return listenPort;
 	}
 	
 	/**
@@ -233,44 +228,6 @@ public class ProcessorNode {
 	public boolean addDiscoveredNode(RemoteNode rn){
 		watchdog.beaconed(rn);
 		return netMgr.addDiscoveredNode(rn);
-	}
-	
-	/**
-	 * <p>Gets requested number of nodes, wrapping the list around when not enough are known to create a list of unique nodes.</p>
-	 * 
-	 * @param count The number of nodes to retrieve. A value of -1 indicates the entire node list should be retrieved.
-	 * @return A list of <i>count</i> remote nodes.
-	 */
-	//TODO: This should return a List<RemoteNode>, but that signature results in a NoSuchMethodError from jobs, even after recompiling against the new class
-	//TODO: This may be removed in favor of direct communication with NetworkManager.
-	public List<RemoteNode> getNodes(int count){
-		if(count == -1)
-			return getActiveNodes();
-		List<RemoteNode> ans = getActiveNodes();
-		ArrayList<RemoteNode> ret = new ArrayList<RemoteNode>();
-		if(ans.size() == 0){
-			RemoteNode self = null;
-			try {
-				self = new RemoteNode(this, "127.0.0.1", LISTEN_PORT);
-			} catch (UnknownHostException e) {
-				//THIS WILL NEVER HAPPEN
-			}
-			for(int i = 0; i < count; i++)
-				ret.add(self);
-		}
-		else{
-			for(int i = 0, added = 0; added < count; i++, added++){
-				if(i >= ans.size()){
-					i = -1;
-					try {
-						ret.add(new RemoteNode(this, "127.0.0.1", LISTEN_PORT));
-					} catch (UnknownHostException e) {}
-					continue;
-				}
-				ret.add(ans.get(i));
-			}
-		}
-		return Collections.unmodifiableList(ret);
 	}
 	
 	/**
@@ -308,19 +265,6 @@ public class ProcessorNode {
 			return -1;
 		}
 		return jobThread.getId();
-	}
-	
-	/**
-	 * <p>Finds a replacement node for the node given. In the event the given node cannot be reached, it will be
-	 * removed from the active node list. Otherwise, a node (possibly the one provided) will be randomly selected and returned.</p>
-	 * 
-	 * @see NetworkManager#getReplacement(RemoteNode)
-	 * @param r The node to replace.
-	 * @return The new node.
-	 */
-	//TODO:This may be removed in favor of direct communication.
-	public RemoteNode getReplacement(RemoteNode r){
-		return netMgr.getReplacement(r);
 	}
 	
 	/**
@@ -371,26 +315,20 @@ public class ProcessorNode {
 	}
 	
 	/**
-	 * <p>Registers a remote node with the watchdog so that this node will be able to detect if the remote node fails.
-	 * For each time a remote node is registered, it will need to be released in order to truly be released from the watchdog.</p>
+	 * <p>Retrieves the running NetworkManager for this node.</p>
 	 * 
-	 * @param rn The node to monitor
-	 * @see ProcessorNode#releaseWatchdogReceiver(RemoteNode)
+	 * @return The running NetworkManager for this node.
 	 */
-	//TODO:This may be removed in favor of direct communication.
-	public void registerWatchdogReceiver(RemoteNode rn){
-		watchdog.registerReceiver(rn);
+	public NetworkManager getNetworkManager(){
+		return netMgr;
 	}
 	
 	/**
-	 * <p>Releases a remote node from the watchdog so that failure may no longer be reported.
-	 * For each time a remote node is registered, it will need to be released in order to truly be released from the watchdog.</p>
+	 * <p>Retrieves the running Watchdog for this node.</p>
 	 * 
-	 * @param rn The node to release from the watchdog.
-	 * @see ProcessorNode#registerWatchdogReceiver(RemoteNode)
+	 * @return The running Watchdog for this node.
 	 */
-	//TODO:This may be removed in favor of direct communication.
-	public void releaseWatchdogReceiver(RemoteNode rn){
-		watchdog.releaseReceiver(rn);
+	public Watchdog getWatchdog(){
+		return watchdog;
 	}
 }

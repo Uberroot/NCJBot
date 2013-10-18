@@ -76,7 +76,7 @@ public class ServerSessionHandler extends Thread{
 			}
 			else if(String.valueOf(cBuffer).trim().equals("Who do you know?")){
 				try {
-					List<RemoteNode> nodes = node.getActiveNodes();
+					List<RemoteNode> nodes = node.getNetworkManager().getActiveNodes();
 					String toSend = "\n";
 					for(RemoteNode n : nodes)
 						toSend += n.getIpAddress().getHostAddress() + ":" + n.getListeningPort() + "\n";

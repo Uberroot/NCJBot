@@ -1,5 +1,8 @@
-package com.github.uberroot.NCJBot;
+package com.github.uberroot.NCJBot.api;
 import java.io.File;
+
+import com.github.uberroot.NCJBot.ProcessorJobWrapper;
+import com.github.uberroot.NCJBot.RemoteNode;
 
 /**
  * <p>This abstract class provides the interface between external code and the node. All code to be run by nodes

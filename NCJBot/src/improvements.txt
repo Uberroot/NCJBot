@@ -55,6 +55,11 @@ ADD: Should gossip mode have a neighbor node limit and use relays to access addi
 	-Gossip mode should still maintain information on all nodes (should it be distributed?) but only connect to a subset
 		-A distinction should be made between modes where the entire network is available for jobs, or only neighbors.
 	-Possible gossip mode neighbor algorithm: retrieve all a full node list from the node and its list of neighbors; connect to all nodes not included in the neighbor list(up to the neighbor limit); Randomly select from the remaining nodes to reach the neighbor limit.
+CHANGE: Identity is based on port, which may change when the server restarts. Could this cause issues with running jobs that are returning data (they send the current port when connecting)?
+CHANGE: Watchdog operation should be completely automatic, not relying on source job activation for listening
+ADD: Create an abstraction to allow for anonymous remote nodes (where ip / port / identity aren't revealed). This would allow for automatic correction on connection failures.
+ADD: Executors
+ADD: fork/join framework implementation
 
 Configurables to add:
 seeds for initial connections
@@ -68,6 +73,7 @@ Server timeouts
 privileged thread pool size
 server thread pool size
 data streaming thread pool size
+minimum size for cached data
 
 //When to use these could be determined by transfer rate benchmarks
 receiving in-memory cache size

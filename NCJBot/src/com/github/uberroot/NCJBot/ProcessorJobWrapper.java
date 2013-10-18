@@ -1,9 +1,10 @@
 package com.github.uberroot.NCJBot;
 import java.io.File;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+
+import com.github.uberroot.NCJBot.api.ProcessorJob;
 
 /**
  * <p>This class is used to run and manage individual ProcessorJobs. Each ProcessorJob is run by it its own unique

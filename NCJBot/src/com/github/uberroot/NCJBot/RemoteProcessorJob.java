@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
 
+import com.github.uberroot.NCJBot.api.ProcessorJob;
+
 /**
  * <p>This class provides access to ProcessorJobs running on remote nodes.</p>
  * 

@@ -143,8 +143,18 @@ public class ProcessorJobWrapper extends Thread {
 	public void run() {
 		//Instantiate job
 		try {
-			job = type.getConstructor(File.class).newInstance(initData); //TODO: By this point, the securitymanager should be in effect
+			//job = type.getConstructor(File.class).newInstance(initData); //TODO: By this point, the securitymanager should be in effect
+			job = type.newInstance();
 		} catch (Exception ex){
+			listener.jobFailedToLoad(this, ex);
+			return;
+		}
+		
+		//Provide initialization data to the job
+		//TODO: This should trigger it's own callbacks
+		try {
+			job.init(initData);
+		} catch (Exception ex) {
 			listener.jobFailedToLoad(this, ex);
 			return;
 		}

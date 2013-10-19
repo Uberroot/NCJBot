@@ -79,6 +79,8 @@ minimum size for cached data
 receiving in-memory cache size
 receiving on-disk cache size
 sending-data cache size
+maximum cache object size
+amount of cache that can be consumed per job
 
 //Quotas
 Number of instances of a job

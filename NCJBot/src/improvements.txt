@@ -60,14 +60,17 @@ CHANGE: Watchdog operation should be completely automatic, not relying on source
 ADD: Create an abstraction to allow for anonymous remote nodes (where ip / port / identity aren't revealed). This would allow for automatic correction on connection failures.
 ADD: Executors
 ADD: fork/join framework implementation
+ADD: JNI Optimizations / supports
 
 Configurables to add:
 seeds for initial connections
 ability to max number of remote nodes to utilize
- - There are sitiuations where one node doesn't need to know about every other node, only some of them
+ - There are situations where one node doesn't need to know about every other node, only some of them
 full or gossip network update messaging
 - Size of network subset used for relaying messages in gossip mode
 Server timeouts
+port configuration
+	-Auto increments if ports are unavailable
  
 //Auto-optimized?
 privileged thread pool size

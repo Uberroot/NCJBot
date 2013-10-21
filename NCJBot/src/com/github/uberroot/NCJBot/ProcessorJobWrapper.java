@@ -47,7 +47,7 @@ public class ProcessorJobWrapper extends Thread {
 	/**
 	 * <p>This is the dynamically loaded subclass. An instance of this will be created when this ProcessorJobWrapper is started.</p>
 	 */
-	private final Class<ProcessorJob> type;
+	private final Class<? extends ProcessorJob> type;
 	
 	
 	//To be accessible by jobs
@@ -120,8 +120,7 @@ public class ProcessorJobWrapper extends Thread {
 		u[0] = classPath.toURI().toURL();
 		URLClassLoader cl = new URLClassLoader(u);
 
-		//TODO: Check type before loading
-		type = (Class<ProcessorJob>) cl.loadClass(className);
+		type = cl.loadClass(className).asSubclass(ProcessorJob.class);
 		cl.close();
 		
 		this.setName("Processor Job (localPid = " + this.getId() + ")");
@@ -141,6 +140,7 @@ public class ProcessorJobWrapper extends Thread {
 	 */
 	@Override
 	public void run() {
+		//TODO: Cleanup after failures
 		//Instantiate job
 		try {
 			//job = type.getConstructor(File.class).newInstance(initData); //TODO: By this point, the securitymanager should be in effect

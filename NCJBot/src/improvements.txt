@@ -61,6 +61,10 @@ ADD: Create an abstraction to allow for anonymous remote nodes (where ip / port 
 ADD: Executors
 ADD: fork/join framework implementation
 ADD: JNI Optimizations / supports
+ADD: RMI (maybe not, depending on performance)
+ADD: JINI (research this)
+ADD: Remote Configuration / update ability
+ - Could be accomplished using code-signing / whitelisting, internal codes, and super-privaliged jobs that have access to internal classes.
 
 Configurables to add:
 seeds for initial connections

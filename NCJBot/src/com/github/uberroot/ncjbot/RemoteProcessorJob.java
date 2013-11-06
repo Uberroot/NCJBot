@@ -78,55 +78,8 @@ public final class RemoteProcessorJob {
 	 * 
 	 * @throws IOException 
 	 */
-	//TODO: The socket code will probably be moved to RemoteNode or its proposed meta-class.
 	//TODO: The type for data will likely become an abstraction, allowing direct use of files and memory cached resources.
-	//TODO: This is functionality is repeated in RemoteNode
 	public void sendData(byte data[]) throws IOException{ //TODO: Enforce linkages between jobs and remote jobs to prevent spoofing
-		ProcessorJobEnvironment t = (ProcessorJobEnvironment) Thread.currentThread();
-		
-		//Create socket
-		Socket s = null;
-		try {
-			s = new Socket(t.getSourceJob().getSource().getIpAddress(), t.getSourceJob().getSource().getListeningPort());
-		} catch (IOException e) {
-			//If here, either host doesn't exist, or is not listening on the port
-			//System.err.println("Unable to connect");
-			throw e;
-		}
-		
-		try {
-			char buffer[] = new char[1500];
-			BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
-			
-			//See if node is active
-			s.getOutputStream().write("Are you alive?".getBytes());
-			in.read(buffer);
-			
-			if(!String.valueOf(buffer).trim().equals("I'm not dead yet.")){
-				System.err.println("Unable to return result");
-			}
-			else{
-				s.getOutputStream().write("I have results.".getBytes());
-				in.read(buffer); //What did you find?
-				
-				//Send the listening port for this node to allow node identification
-				s.getOutputStream().write((node.getListenPort() + "\n").getBytes());
-				
-				//Send the remote(parent) process id, local process id
-				s.getOutputStream().write((remoteTid + "\n").getBytes());
-				s.getOutputStream().write((t.getId() + "\n").getBytes());
-				
-				//Send the result length and data
-				s.getOutputStream().write((data.length + "\n").getBytes());
-				s.getOutputStream().write(data);
-			}
-			s.getOutputStream().write("Goodbye.".getBytes());
-			s.close();
-		} catch (IOException e1) {
-			throw e1;
-		}
-		finally{
-			s.close();
-		}
+		source.sendData(remoteTid, data);
 	}
 }

@@ -26,6 +26,11 @@ import com.github.uberroot.ncjbot.api.ProcessorJobEnvironment;
 //TODO: Should the ProcessorJob management functionality be in its own class?
 public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncjbot.api.ProcessorNode>{
 	/**
+	 * <p>Used to ensure the main method cannot be called more than once.</p>
+	 */
+	private static boolean mutex = false;
+	
+	/**
 	 * <p>The current status string of this node.</p>
 	 */
 	//TODO: This should be replaced with an enumeration or other similar construct
@@ -65,8 +70,10 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	 * @param args Command line arguments. This is ignored.
 	 * @throws IOException
 	 */
-	//TODO: This can be run from anywhere, any time.
 	public static void main(String args[]) throws IOException{
+		if(mutex)	//Can't let anything call this method (especially a ProcessorJob).
+			return;
+		mutex = true;
 		new ProcessorNode();
 	}
 	
@@ -79,108 +86,109 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	private ProcessorNode() throws IOException{
 		//TODO: This setup will be replaced with a configuration file
 		
-				//Seed nodes. This will be replaced with a configuration file
-				ArrayList<RemoteNode> seedNodes = new ArrayList<RemoteNode>();
-				
-				Scanner scan = new Scanner(System.in);
-				System.out.print("Enter seed host: ");
-				String ip = scan.nextLine().trim();
-				System.out.print("Enter seed port: ");
-				seedNodes.add(new RemoteNode(this, ip, scan.nextInt()));
-				scan.nextLine();
-				
-				//Get params
-				System.out.print("Enter listening port: ");
-				listenPort = scan.nextInt();
-				scan.nextLine();
-				
-				//Start the watchdog
-				System.out.print("Starting watchdog...");
-				watchdog = new Watchdog(this);
-				watchdog.start();
-				System.out.println("done");
-				
-				//Run the network manager
-				netMgr = new NetworkManager(this, seedNodes);
-				netMgr.start();
-				
-				//Open socket and respond to requests
-				//TODO: This access pattern should change. The socket should be created outside of the thread that queries it.
-				servThread = null;
+		//Seed nodes. This will be replaced with a configuration file
+		ArrayList<RemoteNode> seedNodes = new ArrayList<RemoteNode>();
+		
+		Scanner scan = new Scanner(System.in);
+		System.out.print("Enter seed host: ");
+		String ip = scan.nextLine().trim();
+		System.out.print("Enter seed port: ");
+		seedNodes.add(new RemoteNode(this, ip, scan.nextInt()));
+		scan.nextLine();
+		
+		//Get params
+		System.out.print("Enter listening port: ");
+		listenPort = scan.nextInt();
+		scan.nextLine();
+		
+		//Start the watchdog
+		System.out.print("Starting watchdog...");
+		watchdog = new Watchdog(this);
+		watchdog.start();
+		System.out.println("done");
+		
+		//Run the network manager
+		netMgr = new NetworkManager(this, seedNodes);
+		netMgr.start();
+	
+		//Open socket and respond to requests
+		//TODO: This access pattern should change. The socket should be created outside of the thread that queries it.
+		servThread = null;
+		try{
+			servThread = new ServerThread(this, listenPort);
+			servThread.start();
+		} catch(IOException e){
+			System.err.println(e.getMessage());
+		}
+		
+		//Set the status to ready
+		status = "I'm not dead yet.";
+		
+		//Handle console input
+		//TODO: This is a rudimentary console for testing. This functionality should be moved to its own class.
+		//TODO: Look into lanterna (https://code.google.com/p/lanterna/) for creating the console. This should allow switching between panels and I/O splitting without a GUI
+		System.out.println("Console initialized... What would you like to do?");
+		while(true){
+			System.out.print("> ");
+			String command = scan.nextLine().trim();
+			if(command.equalsIgnoreCase("GET THREADS")){
+				Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+				System.out.println(threadSet.size() + " threads are running");
+				for(Thread t : threadSet){
+					System.out.println(t.getName());
+				}
+			}
+			else if(command.equalsIgnoreCase("GET NODES")){
+				List<RemoteNode> nodes = netMgr.getActiveNodes();
+				String out = nodes.size() + " nodes are known\n";
+				for(RemoteNode n : nodes)
+					out += n.getIpAddress().toString() + ":" + n.getListeningPort() + "\n";
+				System.out.print(out);
+			}
+			//TODO: Gracefully disconnect.
+			else if(command.equalsIgnoreCase("STOP SERVER")){
+				if(servThread != null){
+					servThread.kill();
+					servThread = null;
+				}
+				else
+					System.err.println("The server is not running");
+			}
+			//TODO: Should this force a presence announcement / node info update?
+			else if(command.equalsIgnoreCase("START SERVER")){
+				if(servThread != null && servThread.isRunning()){
+					System.err.println("The server is already running");
+					continue;
+				}
 				try{
 					servThread = new ServerThread(this, listenPort);
 					servThread.start();
-				} catch(IOException e){
+				}
+				catch(IOException e){
 					System.err.println(e.getMessage());
+					System.err.println("Did you forget to stop the server?");
 				}
-				
-				//Set the status to ready
-				status = "I'm not dead yet.";
-				
-				//Handle console input
-				//TODO: This is a rudimentary console for testing. This functionality should be moved to its own class.
-				//TODO: Look into lanterna (https://code.google.com/p/lanterna/) for creating the console. This should allow switching between panels and I/O splitting without a GUI
-				System.out.println("Console initialized... What would you like to do?");
-				while(true){
-					System.out.print("> ");
-					String command = scan.nextLine().trim();
-					if(command.equalsIgnoreCase("GET THREADS")){
-						Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-						System.out.println(threadSet.size() + " threads are running");
-						for(Thread t : threadSet){
-							System.out.println(t.getName());
-						}
-					}
-					else if(command.equalsIgnoreCase("GET NODES")){
-						List<RemoteNode> nodes = netMgr.getActiveNodes();
-						String out = nodes.size() + " nodes are known\n";
-						for(RemoteNode n : nodes)
-							out += n.getIpAddress().toString() + ":" + n.getListeningPort() + "\n";
-						System.out.print(out);
-					}
-					else if(command.equalsIgnoreCase("STOP SERVER")){
-						if(servThread != null){
-							servThread.kill();
-							servThread = null;
-						}
-						else
-							System.err.println("The server is not running");
-					}
-					//TODO: Should this force a presence announcement / node info update?
-					else if(command.equalsIgnoreCase("START SERVER")){
-						if(servThread != null && servThread.isRunning()){
-							System.err.println("The server is already running");
-							continue;
-						}
-						try{
-							servThread = new ServerThread(this, listenPort);
-							servThread.start();
-						}
-						catch(IOException e){
-							System.err.println(e.getMessage());
-							System.err.println("Did you forget to stop the server?");
-						}
-					}
-					else if(command.equalsIgnoreCase("QUIT")){
-						quit();
-						break;
-					}
-					//TODO: Should this force a presence announcement / node info update?
-					//TODO: A transitional phase should occur when changing ports to finish running jobs before restarting and accepting new jobs
-					else if(command.equalsIgnoreCase("SET PORT")){
-						System.out.print("Enter the new port (restart server to apply): ");
-						listenPort = scan.nextInt();
-						scan.nextLine();
-					}
-					else if(command.equalsIgnoreCase("START JOB")){
-						System.out.println("Enter path to class");
-						File path = new File(scan.nextLine().trim());
-						startJob(path.getParent(), path.getName().replaceFirst("\\.class$", ""), new RemoteNode(this, "127.0.0.1", listenPort), null, null, false);
-					}
-					else
-						System.out.println("What?");
-				}
-				scan.close();
+			}
+			else if(command.equalsIgnoreCase("QUIT")){
+				quit();
+				break;
+			}
+			//TODO: Should this force a presence announcement / node info update?
+			//TODO: A transitional phase should occur when changing ports to finish running jobs before restarting and accepting new jobs
+			else if(command.equalsIgnoreCase("SET PORT")){
+				System.out.print("Enter the new port (restart server to apply): ");
+				listenPort = scan.nextInt();
+				scan.nextLine();
+			}
+			else if(command.equalsIgnoreCase("START JOB")){
+				System.out.println("Enter path to class");
+				File path = new File(scan.nextLine().trim());
+				startJob(path.getParent(), path.getName().replaceFirst("\\.class$", ""), new RemoteNode(this, "127.0.0.1", listenPort), null, null, false);
+			}
+			else
+				System.out.println("What?");
+		}
+		scan.close();
 	}
 	
 	/**

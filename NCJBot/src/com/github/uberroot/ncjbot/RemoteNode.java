@@ -10,6 +10,8 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.List;
 
 
 /**
@@ -20,6 +22,7 @@ import java.security.NoSuchAlgorithmException;
 //TODO: This should encapsulate a meta-class that handles ALL client socket code. Meta class methods will not automatically close sockets for efficiency.
 //TODO: The method used for node identification should be updated, possibly using asymmetric cryptography.
 //TODO: Should InetSocketAddress be used?
+//TODO: Throw exceptions on socket errors
 public final class RemoteNode {
 	/**
 	 * <p>The running ProcessorNode instance.</p>
@@ -146,19 +149,86 @@ public final class RemoteNode {
 			hashCode ^= toXor;
 		}
 	}
+
+	/**
+	 * Queries the node for a list of all other nodes it communicates with.
+	 */
+	public List<RemoteNode> getKnownNodes(){
+		ArrayList<RemoteNode> ret = new ArrayList<RemoteNode>();
+		
+		//Try to create socket
+		Socket s = null;
+		try {
+			s = new Socket(ipAddress, listeningPort);
+		} catch (IOException e) {
+			//If here, either host doesn't exist, or is not listening on the port
+			return ret;
+		}
+		
+		//See if node is active
+		try {
+				char buffer[] = new char[1500];
+				BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+				s.getOutputStream().write("Are you alive?".getBytes());
+				in.read(buffer);
+				
+				if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
+					System.out.println("Node is active");
+					ret.add(this);
+					System.out.print("Retreiving node list...\t");
+					s.getOutputStream().write("Who do you know?".getBytes());
+					buffer = new char[1500];
+					in.read(buffer);
+					String[] nodeStrings = String.valueOf(buffer).trim().split("\n");
+					
+					//Parse the node list from this node
+					for(String ns : nodeStrings){
+						if(!ns.matches("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+"))
+							continue;
+						String[] pair = ns.split(":");
+						RemoteNode rn = new RemoteNode(node, pair[0], Integer.valueOf(pair[1]));
+						
+						//Add the new node to this node's active node list
+						if(!ret.contains(rn)){
+							ret.add(rn);
+							node.announceFoundNode(rn);
+						}
+					}
+				}
+				else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
+					//Node is shutting down
+				}
+				else
+					//Unknown node state System.out.println("Unknown node state: " + String.valueOf(buffer).trim());
+				
+				//Allow the server to close the connection
+				s.getOutputStream().write("Goodbye.".getBytes());
+		} catch (IOException e) {
+			System.out.println("Unable to determine node state");
+		}
+		 
+		//Close the socket
+		try {
+			s.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.exit(-1);
+		}
+		
+		return ret;
+	}
 	
 	/**
 	 * Sends a unit of data to a specific job on the remote node.
 	 * 
-	 * @param ownerTid The thread id of the job sending the data.
+	 * @param destTid The thread id of the job receiving the data.
 	 * @param data The data to send.
 	 * 
 	 * @throws IOException 
 	 */
-	//TODO: Derive ownerTid from the current thread (or use this signature in the proposed meta-class).
 	//TODO: Abstract the data storage and account for size and performance issues automatically
 	//TODO: This method should be merged with RemoteProcessorJob.sendData(byte[])
-	public void sendData(String ownerTid, byte[] data) throws IOException{
+	public void sendData(String destTid, byte[] data) throws IOException{
 		//Try to create socket
 		Socket s = null;
 		try {
@@ -187,8 +257,8 @@ public final class RemoteNode {
 				s.getOutputStream().write((node.getListenPort() + "\n").getBytes());
 				
 				//Send the remote(parent) process id, local process id
-				s.getOutputStream().write((ownerTid + "\n").getBytes());
-				s.getOutputStream().write((Thread.currentThread().getId() + "\n").getBytes());
+				s.getOutputStream().write((destTid + "\n").getBytes());
+				s.getOutputStream().write((Thread.currentThread().getId() + "\n").getBytes()); //TODO: This assumes that the thread calling this method is the one that runs the ProcessorJob
 				
 				//Send the result length and data
 				s.getOutputStream().write((data.length + "\n").getBytes());
@@ -207,13 +277,14 @@ public final class RemoteNode {
 	/**
 	 * Sends a job to be run on the remote node.
 	 * 
-	 * @param ownerTid The thread id of the 
-	 * @param worker
-	 * @param params
+	 * @param ownerTid The thread id of the job that will be the parent of the started job.
+	 * @param worker A file pointing to the class file to send.
+	 * @param params Initialization parameters for the new ProcessorJob.
 	 * @return The remote thread id of the new job, or -1 if the job did not start.
 	 */
 	//TODO: Automatically derive ownerTid.
 	//TODO: Abstract param and worker storage and account for performance and space issues automatically.
+	//TODO: This should return a RemoteProcessorJob
 	public long sendJob(long ownerTid, File worker, byte[] params){
 		long ret = 0;
 		
@@ -277,4 +348,5 @@ public final class RemoteNode {
 		}
 		return ret;
 	}
+
 }

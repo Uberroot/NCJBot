@@ -1,7 +1,6 @@
 CHANGE: Complete redesign of communication protocol (binary instead of text-based)
 	- Protocol should be handled centrally. Received data should be dispacthed to components and digested in a message loop
 ADD: Remote (worker) exception reporting
-ADD: Encapsulation of all functions to be accessible by ProcessorJobs
 CHANGE: Move console commanding to its own class (and possibly its own thread).
 CHANGE: Modify NetworkManager operation to stagger broadcasts of network updates
 	-The entire initialization process needs to be re-examined
@@ -16,6 +15,7 @@ ADD: Thread pools for ServerSessionHandler, data sending / receiving (might be i
 ADD: Exceptions on network errors in communication methods.
 ADD: Ability to allow anonymous worker distribution (dispatcher does not need to request lists of nodes, just needs to request a send)
 ADD: Resource caching (including classes and data, in memory and on disk)
+	-Could include a sending cache for quickly delivering files/classes to several nodes by holding them in memory
 ADD: Commanding node failover (to operate by replicating state to subset of peers at predetermined intervals)
 	-This may require utilization of node identification for secure failovers / to verify the failover peer is authorized to run the job
 ADD: Inter-job streaming
@@ -65,6 +65,7 @@ ADD: RMI (maybe not, depending on performance)
 ADD: JINI (research this)
 ADD: Remote Configuration / update ability
  - Could be accomplished using code-signing / whitelisting, internal codes, and super-privaliged jobs that have access to internal classes.
+ADD: Connection Multiplexing
 
 Configurables to add:
 seeds for initial connections

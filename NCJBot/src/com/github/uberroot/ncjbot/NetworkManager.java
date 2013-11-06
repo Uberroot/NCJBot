@@ -88,73 +88,14 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 		
 		//Find which seed nodes are active
 		System.out.println("Attempting to connect to seed nodes...");
-		boolean hasList = false;
 		for(RemoteNode n : seedNodes){
 			System.out.print("Attempting " + n.getIpAddress() + ":" + n.getListeningPort() + "...\t");
-			
-			//Try to create socket
-			Socket s = null;
-			try {
-				s = new Socket(n.getIpAddress(), n.getListeningPort());
-			} catch (IOException e) {
-				//If here, either host doesn't exist, or is not listening on the port
-				System.out.println("Unable to connect");
-				continue;
-			}
-			
-			//See if node is active
-			try {
-					char buffer[] = new char[1500];
-					BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
-					s.getOutputStream().write("Are you alive?".getBytes());
-					in.read(buffer);
-					
-					if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
-						System.out.println("Node is active");
-						activeNodes.add(n);
-						if(!hasList){
-							System.out.print("Retreiving node list...\t");
-							s.getOutputStream().write("Who do you know?".getBytes());
-							buffer = new char[1500];
-							in.read(buffer);
-							String[] nodeStrings = String.valueOf(buffer).trim().split("\n");
-							
-							//Parse the node list from this node
-							for(String ns : nodeStrings){
-								if(!ns.matches("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+"))
-									continue;
-								String[] pair = ns.split(":");
-								RemoteNode rn = new RemoteNode(node, pair[0], Integer.valueOf(pair[1]));
-								
-								//Add the new node to this node's active node list
-								if(!activeNodes.contains(rn)){
-									activeNodes.add(rn);
-									node.announceFoundNode(rn);
-								}
-							}
-							hasList = true;
-							System.out.println("Done");
-						}
-					}
-					else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
-						System.out.println("Node is shutting down");
-					}
-					else
-						System.out.println("Unknown node state: " + String.valueOf(buffer).trim());
-					
-					//Allow the server to close the connection
-					s.getOutputStream().write("Goodbye.".getBytes());
-			} catch (IOException e) {
-				System.out.println("Unable to determine node state");
-			}
-			 
-			//Close the socket
-			try {
-				s.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-				System.exit(-1);
-			}
+			List<RemoteNode> l = n.getKnownNodes();
+			for(RemoteNode n1 : l)
+				if(!activeNodes.contains(n1)){
+					activeNodes.add(n1);
+					node.announceFoundNode(n1);
+				}
 		}
 		
 		//Are there nodes?
@@ -202,7 +143,6 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 								//Announce presence
 								if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
 									String toSend = "I'm here.\n" + node.getListenPort();
-									//System.out.println("..." + toSend + "...");
 									s.getOutputStream().write(toSend.getBytes());
 									
 									//TODO: should this actually be read? It tells whether the other node knew of this one.

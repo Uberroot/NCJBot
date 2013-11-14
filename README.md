@@ -20,5 +20,7 @@ Features to look forward to:
 * Resource Quotas.
 * Severice Oriented Supports.
 
+For information on using NCJBot, see the <a href="https://github.com/Uberroot/NCJBot/wiki">wiki</a>.
+
 This project is still in a proof-of-concept stage, so run it in a controlled environment and expect things to change.
 A lot of powerful features are coming!

@@ -66,6 +66,8 @@ ADD: JINI (research this)
 ADD: Remote Configuration / update ability
  - Could be accomplished using code-signing / whitelisting, internal codes, and super-privaliged jobs that have access to internal classes.
 ADD: Connection Multiplexing
+ADD: Supports for non-hierarchical distribution / persistent service-type jobs
+ADD: Job state tracking
 
 Configurables to add:
 seeds for initial connections

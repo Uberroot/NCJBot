@@ -1,11 +1,6 @@
 package com.github.uberroot.ncjbot;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.Socket;
-
 import com.github.uberroot.ncjbot.api.ProcessorJob;
-import com.github.uberroot.ncjbot.api.ProcessorJobEnvironment;
 
 /**
  * <p>This class provides access to ProcessorJobs running on remote nodes.</p>

@@ -23,6 +23,7 @@ import java.util.List;
 //TODO: The method used for node identification should be updated, possibly using asymmetric cryptography.
 //TODO: Should InetSocketAddress be used?
 //TODO: Throw exceptions on socket errors
+//TODO: Add ability to check for info about system a node runs on.
 public final class RemoteNode {
 	/**
 	 * <p>The running ProcessorNode instance.</p>
@@ -275,7 +276,8 @@ public final class RemoteNode {
 	}
 	
 	/**
-	 * Sends a job to be run on the remote node.
+	 * Sends a job to be run on the RemoteNode. This will automatically register the RemoteNode with the Watchdog. Upon completion,
+	 * a corresponding call to releaseWatchdogReceiver() should occur with this node.
 	 * 
 	 * @param ownerTid The thread id of the job that will be the parent of the started job.
 	 * @param worker A file pointing to the class file to send.
@@ -285,6 +287,8 @@ public final class RemoteNode {
 	//TODO: Automatically derive ownerTid.
 	//TODO: Abstract param and worker storage and account for performance and space issues automatically.
 	//TODO: This should return a RemoteProcessorJob
+	//TODO: An additional parameter should be provided to allow the Watchdog functionality to be toggled
+	//TODO: Add job state tracking
 	public long sendJob(long ownerTid, File worker, byte[] params){
 		long ret = 0;
 		

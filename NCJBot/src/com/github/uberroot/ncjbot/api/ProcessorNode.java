@@ -1,5 +1,7 @@
 package com.github.uberroot.ncjbot.api;
 
+import com.github.uberroot.ncjbot.NodeState;
+
 /**
  * <p>A public-safe wrapper for {@link com.github.uberroot.ncjbot.ProcessorNode}.</p>
  * 
@@ -22,16 +24,12 @@ public final class ProcessorNode {
 	}
 	
 	/**
-	 * <p>Gets the current status string of the node.</p>
-	 * <b>Valid Values:</b>
-	 * <ul>
-	 * <li><b>I'm not dead yet.</b> The node is active.</li>
-	 * <li><b>I'm bleeding out.</b> The node is shutting down.</li>
-	 * </ul>
-	 * @return The current status string of the node.
+	 * <p>Gets the current status of the node.</p>
+
+	 * @return The current status of the node.
 	 */
-	public String getStatus(){
-		return node.getStatus();
+	public NodeState getState(){
+		return node.getState();
 	}
 	
 	/**

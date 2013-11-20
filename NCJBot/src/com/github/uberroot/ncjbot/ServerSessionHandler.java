@@ -70,7 +70,20 @@ public final class ServerSessionHandler extends Thread{
 				break;
 			if(String.valueOf(cBuffer).trim().equals("Are you alive?")){
 				try {
-					clientSock.getOutputStream().write(node.getStatus().getBytes());
+					switch(node.getState()){
+						case RUNNING:{
+							clientSock.getOutputStream().write("I'm not dead yet.".getBytes());
+							break;
+						}
+						case SHUTTING_DOWN:{
+							clientSock.getOutputStream().write("I'm bleeding out.".getBytes());
+							break;
+						}
+						case UNKNOWN:{
+							clientSock.getOutputStream().write("I'm not okay.".getBytes());
+							break;
+						}
+					}
 				} catch (IOException e) {
 					System.err.println("Unable to respond.");
 				}

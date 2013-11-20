@@ -31,11 +31,10 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	private static boolean mutex = false;
 	
 	/**
-	 * <p>The current status string of this node.</p>
+	 * <p>The current state of this node.</p>
 	 */
-	//TODO: This should be replaced with an enumeration or other similar construct
 	//TODO: This needs to be implemented more completely
-	private String status;
+	private NodeState state;
 	
 	/**
 	 * <p>The NetworkManager for this node.</p>
@@ -93,7 +92,7 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 		System.out.print("Enter seed host: ");
 		String ip = scan.nextLine().trim();
 		System.out.print("Enter seed port: ");
-		seedNodes.add(new RemoteNode(this, ip, scan.nextInt()));
+		seedNodes.add(new RemoteNode(this, ip, scan.nextInt())); //TODO: This breaks when a bad hostname is provided
 		scan.nextLine();
 		
 		//Get params
@@ -122,7 +121,7 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 		}
 		
 		//Set the status to ready
-		status = "I'm not dead yet.";
+		state = NodeState.RUNNING;
 		
 		//Handle console input
 		//TODO: This is a rudimentary console for testing. This functionality should be moved to its own class.
@@ -204,16 +203,12 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	}
 	
 	/**
-	 * <p>Gets the current status string of the node.</p>
-	 * <b>Valid Values:</b>
-	 * <ul>
-	 * <li><b>I'm not dead yet.</b> The node is active.</li>
-	 * <li><b>I'm bleeding out.</b> The node is shutting down.</li>
-	 * </ul>
-	 * @return The current status string of the node.
+	 * <p>Gets the current status of the node.</p>
+
+	 * @return The current status of the node.
 	 */
-	public String getStatus(){
-		return status;
+	public NodeState getState(){
+		return state;
 	}
 	
 	/**

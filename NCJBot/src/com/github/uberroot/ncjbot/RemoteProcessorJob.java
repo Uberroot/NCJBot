@@ -72,9 +72,10 @@ public final class RemoteProcessorJob {
 	 * @param data The data to send.
 	 * 
 	 * @throws IOException 
+	 * @throws NodeStateException 
 	 */
 	//TODO: The type for data will likely become an abstraction, allowing direct use of files and memory cached resources.
-	public void sendData(byte data[]) throws IOException{ //TODO: Enforce linkages between jobs and remote jobs to prevent spoofing
+	public void sendData(byte data[]) throws IOException, NodeStateException{ //TODO: Enforce linkages between jobs and remote jobs to prevent spoofing
 		source.sendData(remoteTid, data);
 	}
 }

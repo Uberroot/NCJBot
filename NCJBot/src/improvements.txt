@@ -1,5 +1,4 @@
 CHANGE: Complete redesign of communication protocol (binary instead of text-based)
-	- Protocol should be handled centrally. Received data should be dispacthed to components and digested in a message loop
 ADD: Remote (worker) exception reporting
 CHANGE: Move console commanding to its own class (and possibly its own thread).
 CHANGE: Modify NetworkManager operation to stagger broadcasts of network updates
@@ -12,7 +11,6 @@ ADD: Support for call-response communications between jobs (with ability to perf
 	- Should have the ability to hold tcp stream open for several remote calls
 CHANGE: Data should have support for sending / receiving data using InputStream / OutputStream classes, handled internally either as filestreams or bytestreams
 ADD: Thread pools for ServerSessionHandler, data sending / receiving (might be implemented with multiple threads), and job running (this could have implications with thread ids / assuming a thread that started a second job is s
-ADD: Exceptions on network errors in communication methods.
 ADD: Ability to allow anonymous worker distribution (dispatcher does not need to request lists of nodes, just needs to request a send)
 ADD: Resource caching (including classes and data, in memory and on disk)
 	-Could include a sending cache for quickly delivering files/classes to several nodes by holding them in memory
@@ -21,14 +19,16 @@ ADD: Commanding node failover (to operate by replicating state to subset of peer
 ADD: Inter-job streaming
 CHANGE: Conversion of Watchdog class to a central timing class to handle other timing functions and reduce number of threads needed
  - The primary timer would run on a single dedicated thread. The callbacks used will execute on threads from a timing threadpool
+ - Just use the Timer class
 ADD: Timeouts on server sessions (possibly implemented using centralized timing)
 ADD: SecurityManager that operates at the thread level
 ADD: (other access controls... needs to be researched)
 ADD: Resource allocation monitoring (to cleanup after failures, possibly implemented using security manager)
+ - Java 7 might take care of much of this
 ADD: Node configuration via file
 ADD: GUI to segment commanding, status, and individual messages from ProcessorJobs
 CHANGE: Take control of stdin/stdout/stderr to prevent ProcessorJobs from accessing these streams directly
-CHANGE: Research methods to prevent spoofing
+CHANGE: methods to prevent spoofing
 ADD: Ability to support service providers
 	-Could allow jobs to request anonymous providers for various services
 ADD: PKI for allowing jobs to perform certain privileged operations without privileged threads
@@ -41,7 +41,7 @@ ADD: Caching for data to be sent if data is pulled from hdd
 ADD: Code-Signing / whitelist for allowed classes (can be disabled)
 ADD: Interface for access to (approved) external programs
 ADD: Subthread tracking (Parent-child relationships between threads spawned by ProcessorJobs)
-ADD: Implement ProcessorNode status more completely
+CHANGE: Implement ProcessorNode status more completely
 CHANGE: Use an alternative method for nodes to identify themselves
 CHANGE: Should persistent connections be used while jobs are running?
 	-aka TCP keepalives
@@ -49,13 +49,13 @@ CHANGE: Should persistent connections be used while jobs are running?
 	-What will the additional overhead be?
 	-Could eliminate the need for identification code when sending to, receiving from, and stopping remote jobs.
 	-A socket cache could be used to limit the number of TCP connections to open when connecting to servers.
-CHANGE: Replace getStackTrace calls with useful code.
 ADD: Should relays and routing be included for reaching between networks / odd routes?
 ADD: Should gossip mode have a neighbor node limit and use relays to access additional nodes?
 	-Gossip mode should still maintain information on all nodes (should it be distributed?) but only connect to a subset
 		-A distinction should be made between modes where the entire network is available for jobs, or only neighbors.
 	-Possible gossip mode neighbor algorithm: retrieve all a full node list from the node and its list of neighbors; connect to all nodes not included in the neighbor list(up to the neighbor limit); Randomly select from the remaining nodes to reach the neighbor limit.
 CHANGE: Identity is based on port, which may change when the server restarts. Could this cause issues with running jobs that are returning data (they send the current port when connecting)?
+	- Identity to be based on unique IDs in the future (node picks ID, tries it on the network, picks another if it already exists)
 CHANGE: Watchdog operation should be completely automatic, not relying on source job activation for listening
 ADD: Create an abstraction to allow for anonymous remote nodes (where ip / port / identity aren't revealed). This would allow for automatic correction on connection failures.
 ADD: Executors
@@ -66,8 +66,14 @@ ADD: JINI (research this)
 ADD: Remote Configuration / update ability
  - Could be accomplished using code-signing / whitelisting, internal codes, and super-privaliged jobs that have access to internal classes.
 ADD: Connection Multiplexing
+ - Persistence modes (when to start the connection / when to end it: start when discovered, start when needed, end after first, end after no activity (timeout?), don't end)
+ - Duplex modes (single channel / single direction, single channel / bidirectional (half-duplex), dual channel / single direction per channel (full-duplex), single channel by default upgraded to dual channel when needed)
 ADD: Supports for non-hierarchical distribution / persistent service-type jobs
 ADD: Job state tracking
+CHANGE: Log outputs from classes under separate tags / streams
+ADD: ConnectionManager class for handling low-level socket code / multiplexing
+ - Should include sister class for performing atomic actions over the network (NetworkSequence + NetworkOperation classes?)
+
 
 Configurables to add:
 seeds for initial connections

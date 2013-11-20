@@ -1,8 +1,6 @@
 package com.github.uberroot.ncjbot;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.Socket;
+import java.net.ConnectException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,10 +66,6 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	 */
 	private ArrayList<RemoteNode> activeNodes;
 	
-	/**
-	 * <p>Node that have been discovered and who's discovery needs to be relayed to other nodes.</p>
-	 */
-	private ArrayList<RemoteNode> addedNodes; 
 	
 	/**
 	 * <p>Initializes the NetworkManager with the given seed nodes. Each of the seed nodes will be contacted and queried for a
@@ -84,13 +78,43 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	public NetworkManager(ProcessorNode node, ArrayList<RemoteNode> seedNodes){
 		this.node = node;
 		activeNodes = new ArrayList<RemoteNode>();
-		addedNodes = new ArrayList<RemoteNode>();
 		
-		//Find which seed nodes are active
+		//Query seed nodes for node lists
 		System.out.println("Attempting to connect to seed nodes...");
-		for(RemoteNode n : seedNodes){
+		for(int i = 0; i < seedNodes.size(); i++){
+			RemoteNode n = seedNodes.get(i);
+			
 			System.out.print("Attempting " + n.getIpAddress() + ":" + n.getListeningPort() + "...\t");
-			List<RemoteNode> l = n.getKnownNodes();
+			List<RemoteNode> l = null;
+			try{
+				l = n.getKnownNodes();
+			}
+			catch(ConnectException e){
+				//Unable to connect to seed node. Don't add it.
+				continue;
+			} catch (IOException e) {
+				//Communication is not reliable. Ignore this node.
+				continue;
+			} catch (NodeStateException e) {
+				switch(e.getState()){
+					case SHUTTING_DOWN:{
+						//Don't add it, it won't be useful
+						break;
+					}
+					case RUNNING:
+					case UNKNOWN:{
+						//Unknown or running. Either way, track it.
+						activeNodes.add(n);
+						break;
+					}
+				}
+				continue;
+			}
+			
+			//No exceptions, add the seed node
+			activeNodes.add(n);
+			
+			//Add the seed knows
 			for(RemoteNode n1 : l)
 				if(!activeNodes.contains(n1)){
 					activeNodes.add(n1);
@@ -121,54 +145,33 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 					System.out.println("Announcing presence...");
 					for(int i = 0; i < activeNodes.size(); i++){
 						RemoteNode n = activeNodes.get(i);
-						
-						//Try to create socket
-						Socket s = null;
 						try {
-							s = new Socket(n.getIpAddress(), n.getListeningPort());
-						} catch (IOException e) {
+							n.beacon();
+						}
+						catch (ConnectException e) { //Could not connect
 							//If here, either host doesn't exist, or is not listening on the port
 							System.out.println("Unable to connect");
 							node.announceNodeFailure(activeNodes.remove(i--));
-							continue;
 						}
-						
-						//See if node is active
-						try {
-								char buffer[] = new char[1500];
-								BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
-								s.getOutputStream().write("Are you alive?".getBytes());
-								in.read(buffer);
-								
-								//Announce presence
-								if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
-									String toSend = "I'm here.\n" + node.getListenPort();
-									s.getOutputStream().write(toSend.getBytes());
-									
-									//TODO: should this actually be read? It tells whether the other node knew of this one.
-									in.read(buffer); //To ensure flow control
-								}
-								else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
+						catch (IOException e) {
+							//If here, communication is not reliable
+							System.out.println("Unreliable");
+							node.announceNodeFailure(activeNodes.remove(i--));
+						}
+						catch (NodeStateException e) {
+							switch(e.getState()){
+								case SHUTTING_DOWN:{
 									//TODO: This isn't a failure, but should this be announced via ProcessorNode?
 									activeNodes.remove(i--);
+									break;
 								}
-								else
+								case RUNNING:
+								case UNKNOWN:{
 									//TODO: This isn't a failure, but should this be announced via ProcessorNode?
-									System.out.println("Unknown node state: " + String.valueOf(buffer).trim());
-								s.getOutputStream().write("Goodbye.".getBytes());
-						} catch (IOException e) {
-							//The connection was interrupted for some reason...
-							System.out.println("Unable to determine node state");
-							node.announceNodeFailure(activeNodes.remove(i--));	
-						}
-						 
-						//Close the socket
-						try {
-							s.close();
-						} catch (IOException e) {
-							//This shouldn't happen. Assume the worst.
-							e.printStackTrace();
-							System.exit(-1);
+									//System.out.println("Unknown node state: " + String.valueOf(buffer).trim());
+									break;
+								}
+							}
 						}
 					}
 				}
@@ -202,7 +205,6 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	public boolean addDiscoveredNode(RemoteNode rn){
 		if(!activeNodes.contains(rn)){
 			activeNodes.add(rn);
-			addedNodes.add(rn);
 			node.announceFoundNode(rn);
 			return true;
 		}
@@ -220,21 +222,10 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	//TODO: This should return unmodifiable RemoteNodes
 	public RemoteNode getReplacement(RemoteNode r){
 		//See if r is offline
-		Socket s = null;
-		try {
-			s = new Socket(r.getIpAddress(), r.getListeningPort());
-		} catch (IOException e) {
+		if(!r.canConnect()){
 			//If here, either host doesn't exist, or is not listening on the port
 			System.out.println("Removing unresponsive node");
 			activeNodes.remove(r);
-		}
-		try {
-			if(s != null)
-				s.close();
-		} catch (IOException e) {
-			//This shouldn't happen. Assume the worst.
-			e.printStackTrace();
-			node.quit();
 		}
 		
 		//Select a new node
@@ -265,6 +256,7 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 				self = new RemoteNode(node, "127.0.0.1", node.getListenPort());
 			} catch (UnknownHostException e) {
 				//THIS WILL NEVER HAPPEN
+				node.quit();
 			}
 			for(int i = 0; i < count; i++)
 				ret.add(self);
@@ -275,7 +267,10 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 					i = -1;
 					try {
 						ret.add(new RemoteNode(node, "127.0.0.1", node.getListenPort()));
-					} catch (UnknownHostException e) {}
+					} catch (UnknownHostException e) {
+						//THIS WILL NEVER HAPPEN
+						node.quit();
+					}
 					continue;
 				}
 				ret.add(ans.get(i));

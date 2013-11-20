@@ -1,8 +1,5 @@
 package com.github.uberroot.ncjbot;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.Socket;
 import java.util.Hashtable;
 import java.util.Set;
 
@@ -104,39 +101,12 @@ public final class Watchdog extends Thread implements UnsafeObject<com.github.ub
 		for(RemoteNode rn : keys){
 			if(toNotify.get(rn) == 0){
 				//Beacon
-				//Try to create socket
-				Socket s = null;
 				try {
-					s = new Socket(rn.getIpAddress(), rn.getListeningPort());
+					rn.beacon();
+				} catch (NodeStateException e) { //TODO: Should this stop trying after so many failures?
+					continue; //Try again on next tick
 				} catch (IOException e) {
-					//If here, either host doesn't exist, or is not listening on the port
-					System.out.println("Unable to connect");
-					continue;
-				}
-				
-				//See if node is active
-				try {
-						char buffer[] = new char[1500];
-						BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
-						s.getOutputStream().write("Are you alive?".getBytes());
-						in.read(buffer);
-						
-						if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
-							String toSend = "I'm here.\n" + node.getListenPort();
-							s.getOutputStream().write(toSend.getBytes());
-							in.read(buffer); //To ensure flow control
-						}
-						s.getOutputStream().write("Goodbye.".getBytes());
-				} catch (IOException e) {
-					System.out.println("Unable to determine node state");
-				}
-				 
-				//Close the socket
-				try {
-					s.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-					continue;
+					continue; //Try again on next tick
 				}
 				
 				//Reset
@@ -154,6 +124,7 @@ public final class Watchdog extends Thread implements UnsafeObject<com.github.ub
 		for(RemoteNode rn : keys2){
 			if(expecting.get(rn) == 0){
 				//Announce the failure
+				//TODO: This should use the listener model instead of direct calls. The network manager needs to know about this too.
 				node.announceNodeFailure(rn);
 				
 				//Remove from watchdog

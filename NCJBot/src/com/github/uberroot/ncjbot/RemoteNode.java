@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -24,6 +25,7 @@ import java.util.List;
 //TODO: Should InetSocketAddress be used?
 //TODO: Throw exceptions on socket errors
 //TODO: Add ability to check for info about system a node runs on.
+//TODO: A better communication model between RemoteNodes and NetworkManagers needs to be established (a listener model?)
 public final class RemoteNode {
 	/**
 	 * <p>The running ProcessorNode instance.</p>
@@ -66,7 +68,7 @@ public final class RemoteNode {
 	 * @param ip The new ip address or hostname.
 	 * @throws UnknownHostException
 	 */
-	private void setIpAddress(String ip) throws UnknownHostException{ //Should never hit the exception
+	private void setIpAddress(String ip) throws UnknownHostException{
 		ipAddress = InetAddress.getByName(ip);
 	}
 	
@@ -153,19 +155,17 @@ public final class RemoteNode {
 
 	/**
 	 * Queries the node for a list of all other nodes it communicates with.
+	 * 
+	 * @throws ConnectException
+	 * @throws IOException 
+	 * @throws NodeStateException 
 	 */
-	public List<RemoteNode> getKnownNodes(){
+	public List<RemoteNode> getKnownNodes() throws IOException, NodeStateException{
 		ArrayList<RemoteNode> ret = new ArrayList<RemoteNode>();
 		
 		//Try to create socket
-		Socket s = null;
-		try {
-			s = new Socket(ipAddress, listeningPort);
-		} catch (IOException e) {
-			//If here, either host doesn't exist, or is not listening on the port
-			return ret;
-		}
-		
+		Socket s = new Socket(ipAddress, listeningPort); //Could throw a ConnectionException
+
 		//See if node is active
 		try {
 				char buffer[] = new char[1500];
@@ -175,7 +175,6 @@ public final class RemoteNode {
 				
 				if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
 					System.out.println("Node is active");
-					ret.add(this);
 					System.out.print("Retreiving node list...\t");
 					s.getOutputStream().write("Who do you know?".getBytes());
 					buffer = new char[1500];
@@ -185,7 +184,7 @@ public final class RemoteNode {
 					//Parse the node list from this node
 					for(String ns : nodeStrings){
 						if(!ns.matches("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+"))
-							continue;
+							continue; //TODO: Should this throw a malformed data exception?
 						String[] pair = ns.split(":");
 						RemoteNode rn = new RemoteNode(node, pair[0], Integer.valueOf(pair[1]));
 						
@@ -196,24 +195,22 @@ public final class RemoteNode {
 						}
 					}
 				}
-				else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
+				else if(String.valueOf(buffer).trim().equals("I'm bleeding out."))
 					//Node is shutting down
-				}
+					throw new NodeStateException(NodeState.SHUTTING_DOWN);
 				else
-					//Unknown node state System.out.println("Unknown node state: " + String.valueOf(buffer).trim());
+					//Unknown node state
+					throw new NodeStateException(NodeState.UNKNOWN);
 				
 				//Allow the server to close the connection
 				s.getOutputStream().write("Goodbye.".getBytes());
 		} catch (IOException e) {
-			System.out.println("Unable to determine node state");
+			//Communication error of some sort. Throw exception and fall through to the socket closure.
+			throw e;
 		}
-		 
-		//Close the socket
-		try {
+		finally{
+			//Close the socket
 			s.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-			System.exit(-1);
 		}
 		
 		return ret;
@@ -225,18 +222,16 @@ public final class RemoteNode {
 	 * @param destTid The thread id of the job receiving the data.
 	 * @param data The data to send.
 	 * 
+	 * @throws ConnectException
 	 * @throws IOException 
+	 * @throws NodeStateException 
 	 */
 	//TODO: Abstract the data storage and account for size and performance issues automatically
 	//TODO: This method should be merged with RemoteProcessorJob.sendData(byte[])
-	public void sendData(String destTid, byte[] data) throws IOException{
+	//TODO: Failure here needs to make its way to the network manager
+	public void sendData(String destTid, byte[] data) throws IOException, NodeStateException{
 		//Try to create socket
-		Socket s = null;
-		try {
-			s = new Socket(ipAddress, listeningPort);
-		} catch (IOException e) {
-			throw e;
-		}
+		Socket s = new Socket(ipAddress, listeningPort);
 		
 		try {
 			char buffer[] = new char[1500];
@@ -246,11 +241,7 @@ public final class RemoteNode {
 			s.getOutputStream().write("Are you alive?".getBytes());
 			in.read(buffer);
 			
-			if(!String.valueOf(buffer).trim().equals("I'm not dead yet.")){
-				System.err.println("Unable to return result");
-				//TODO Throw an exception when this occurs
-			}
-			else{
+			if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
 				s.getOutputStream().write("I have results.".getBytes());
 				in.read(buffer); //What did you find?
 				
@@ -265,12 +256,20 @@ public final class RemoteNode {
 				s.getOutputStream().write((data.length + "\n").getBytes());
 				s.getOutputStream().write(data);
 			}
+			else if(String.valueOf(buffer).trim().equals("I'm bleeding out."))
+				//Node is shutting down
+				throw new NodeStateException(NodeState.SHUTTING_DOWN);
+			else
+				//Unknown node state
+				throw new NodeStateException(NodeState.UNKNOWN);
 			s.getOutputStream().write("Goodbye.".getBytes());
 			s.close();
-		} catch (IOException e1) {
-			throw e1;
+		} catch (IOException e) {
+			//Communication error of some sort. Throw exception and fall through to the socket closure.
+			throw e;
 		}
 		finally{
+			//Close the socket
 			s.close();
 		}
 	}
@@ -282,23 +281,23 @@ public final class RemoteNode {
 	 * @param ownerTid The thread id of the job that will be the parent of the started job.
 	 * @param worker A file pointing to the class file to send.
 	 * @param params Initialization parameters for the new ProcessorJob.
-	 * @return The remote thread id of the new job, or -1 if the job did not start.
+	 * @return The remote thread id of the new job.
+	 * 
+	 * @throws ConnectException
+	 * @throws IOException
+	 * @throws NodeStateException 
 	 */
 	//TODO: Automatically derive ownerTid.
 	//TODO: Abstract param and worker storage and account for performance and space issues automatically.
 	//TODO: This should return a RemoteProcessorJob
 	//TODO: An additional parameter should be provided to allow the Watchdog functionality to be toggled
-	//TODO: Add job state tracking
-	public long sendJob(long ownerTid, File worker, byte[] params){
+	//TODO: Add job state tracking.
+	//TODO: Failure here needs to make its way to the network manager
+	public long sendJob(long ownerTid, File worker, byte[] params) throws IOException, NodeStateException{
 		long ret = 0;
 		
 		//Try to create socket
-		Socket s = null;
-		try {
-			s = new Socket(ipAddress, listeningPort);
-		} catch (IOException e) {
-			return -1;
-		}
+		Socket s = new Socket(ipAddress, listeningPort);
 		
 		try {
 			char buffer[] = new char[1500];
@@ -308,9 +307,7 @@ public final class RemoteNode {
 			s.getOutputStream().write("Are you alive?".getBytes());
 			in.read(buffer);
 			
-			if(!String.valueOf(buffer).trim().equals("I'm not dead yet."))
-				return -1;
-			else{
+			if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
 				s.getOutputStream().write("I have a job for you.".getBytes());
 				in.read(buffer); //What will I need?
 				
@@ -337,20 +334,89 @@ public final class RemoteNode {
 				fin.close();
 				
 				//Await remote process id
-				ret= Integer.valueOf(in.readLine());
+				ret= Long.valueOf(in.readLine());
 				node.getWatchdog().registerReceiver(this);
 			}
+			else if(String.valueOf(buffer).trim().equals("I'm bleeding out."))
+				//Node is shutting down
+				throw new NodeStateException(NodeState.SHUTTING_DOWN);
+			else
+				//Unknown node state
+				throw new NodeStateException(NodeState.UNKNOWN);
 			s.getOutputStream().write("Goodbye.".getBytes());
-		} catch (IOException e1) {
-			e1.printStackTrace();
-			return -1;
-		}
-		try {
-			s.close();
 		} catch (IOException e) {
-			e.printStackTrace();
+			//Communication error of some sort. Throw exception and fall through to the socket closure.
+			throw e;
+		}
+		finally{
+			//Close the socket
+			s.close();
 		}
 		return ret;
 	}
 
+	/**
+	 * <p>Alerts the RemoteNode to the presence of this node.</p>
+	 * 
+	 * @throws IOException 
+	 * @throws NodeStateException 
+	 */
+	//TODO: Failure here needs to make its way to the network manager
+	public void beacon() throws IOException, NodeStateException{
+		//Try to create socket
+		Socket s = new Socket(ipAddress, listeningPort);
+		
+		//See if node is active
+		try {
+				char buffer[] = new char[1500];
+				BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+				s.getOutputStream().write("Are you alive?".getBytes());
+				in.read(buffer);
+				
+				//Announce presence
+				if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
+					s.getOutputStream().write(("I'm here.\n" + node.getListenPort()).getBytes());
+					
+					//TODO: should this actually be read? It tells whether the other node knew of this one.
+					in.read(buffer); //To ensure flow control
+				}
+				else if(String.valueOf(buffer).trim().equals("I'm bleeding out."))
+					throw new NodeStateException(NodeState.SHUTTING_DOWN);
+				else
+					throw new NodeStateException(NodeState.UNKNOWN);
+				s.getOutputStream().write("Goodbye.".getBytes());
+		} catch (IOException e) {
+			//The connection was interrupted for some reason...
+			System.out.println("Unable to determine node state");
+			//node.announceNodeFailure(activeNodes.remove(i--));	
+		}
+		finally{
+			//Close the socket
+			s.close();
+		}
+	}
+	
+	
+	/**
+	 * Determines if it is possible to establish a connection with the node.
+	 * 
+	 * @deprecated This will be removed soon as it can be replaced entirely with exception handling and listener objects
+	 * @return True if a connection could be established, false otherwise.
+	 */
+	public boolean canConnect(){
+		Socket s = null;
+		try {
+			s = new Socket(getIpAddress(), getListeningPort());
+		} catch (IOException e) {
+			//If here, either host doesn't exist, or is not listening on the port
+			return false;
+		}
+		try {
+			if(s != null)
+				s.close();
+		} catch (IOException e) {
+			
+		}
+		return true;
+	}
 }

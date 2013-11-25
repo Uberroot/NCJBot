@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * <p>This class keeps track of other nodes within the network. The nodes within a network only know of each
@@ -53,11 +55,8 @@ import java.util.Random;
  *
  */
 //TODO: This should be a singleton class
-//TODO: This functionality will be moved away from it's own thread and into centralized timing
-//TODO: This shouldn't be a Thread subclass as it exposes public methods through thread enumeration
-//TODO: All of these methods need the synchronized specifier (Must not be a thread subclass). This will make EventListener logic less complex (requires testing)
 //TODO: There should be a method for internal removal of nodes
-public final class NetworkManager extends Thread implements UnsafeObject<com.github.uberroot.ncjbot.api.NetworkManager>, RemoteNode.EventListener{
+public final class NetworkManager implements Runnable, UnsafeObject<com.github.uberroot.ncjbot.api.NetworkManager>, RemoteNode.EventListener{
 	/**
 	 * <p>The running ProcessorNode instance.</p>
 	 */
@@ -67,6 +66,11 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	 * <p>The list of all nodes known to be active on the network.</p>
 	 */
 	private ArrayList<RemoteNode> activeNodes;
+	
+	/**
+	 * <p>The ScheduledFuture for handling the beacon timer</p>
+	 */
+	private ScheduledFuture<?> future;
 	
 	
 	/**
@@ -137,67 +141,53 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 		if(activeNodes.size() == 0)
 			System.out.println("No active nodes found. Starting as lone node.");
 		
-		setName("Network Manager");
+		//Register with the timer provider
+		future = node.getExecutor().scheduleAtFixedRate(this, 0, 60, TimeUnit.MINUTES);
 	}
 	
 	/**
-	 * <p>This method runs an hourly beacon for alerting nodes in the network of this node's presence. </p>
-	 * <b>THIS IMPLEMENTATION WILL BE REPLACED WITH A CALLBACK-BASED CENTRALIZED TIMING THREAD.</b>
+	 * <p>This method performs a beacon alerting nodes in the network of this node's presence. </p>
 	 */
 	@Override
-	public void run(){
-		int minute = 0;
-		while(true){
+	public synchronized void run(){
+		System.out.println("Announcing presence...");
+		for(int i = 0; i < activeNodes.size(); i++){
+			RemoteNode n = activeNodes.get(i);
 			try {
-				//Run once per hour
-				if(minute % 60 == 0){
-					if(minute >= 60)
-						minute -= 60;
-					System.out.println("Announcing presence...");
-					for(int i = 0; i < activeNodes.size(); i++){
-						RemoteNode n = activeNodes.get(i);
-						try {
-							//Temporarily remove self from the listener.
-							//TODO: This is to fix synchronization issues.
-							n.removeEventListener(this);
-							n.beacon();
-							//TODO: This is to fix synchronization issues.
-							n.addEventListener(this);
-						}
-						catch (ConnectException e) { //Could not connect
-							//If here, either host doesn't exist, or is not listening on the port
-							System.out.println("Unable to connect");
-							node.announceNodeFailure(activeNodes.remove(i--));
-						}
-						catch (IOException e) {
-							//If here, communication is not reliable
-							System.out.println("Unreliable");
-							node.announceNodeFailure(activeNodes.remove(i--));
-						}
-						catch (NodeStateException e) {
-							switch(e.getState()){
-								case SHUTTING_DOWN:{
-									//TODO: This isn't a failure, but should this be announced via ProcessorNode?
-									activeNodes.remove(i--);
-									break;
-								}
-								case RUNNING:
-								case UNKNOWN:{
-									//TODO: This isn't a failure, but should this be announced via ProcessorNode?
-									//System.out.println("Unknown node state: " + String.valueOf(buffer).trim());
-									break;
-								}
-							}
-						}
+				//Temporarily remove self from the listener to fix synchronization issues.
+				//TODO: This is to fix synchronization issues.
+				n.removeEventListener(this);
+				n.beacon();
+				//Begin listening again
+				//TODO: This is to fix synchronization issues.
+				n.addEventListener(this);
+			}
+			catch (ConnectException e) { //Could not connect
+				//If here, either host doesn't exist, or is not listening on the port
+				System.out.println("Unable to connect");
+				node.announceNodeFailure(activeNodes.remove(i--));
+			}
+			catch (IOException e) {
+				//If here, communication is not reliable
+				System.out.println("Unreliable");
+				node.announceNodeFailure(activeNodes.remove(i--));
+			}
+			catch (NodeStateException e) {
+				switch(e.getState()){
+					case SHUTTING_DOWN:{
+						//TODO: This isn't a failure, but should this be announced via ProcessorNode?
+						activeNodes.remove(i--);
+						break;
+					}
+					case RUNNING:
+					case UNKNOWN:{
+						//TODO: This isn't a failure, but should this be announced via ProcessorNode?
+						//System.out.println("Unknown node state: " + String.valueOf(buffer).trim());
+						break;
 					}
 				}
-				Thread.sleep(60000); //Wait a minute
-			} catch (InterruptedException e) { //This is used to kill the thread by calling interrupt().
-				break;
 			}
-			minute++; //TODO: This minute counter is a relic of an older implementation, but will be included in a new one so it remains.
 		}
-		System.out.println("The network manager has stopped");
 	}
 
 	/**
@@ -207,7 +197,7 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	 */
 	//TODO: Randomization for load balancing (this could be done in getNodes() instead)
 	//TODO: This should return unmodifiable RemoteNodes
-	public List<RemoteNode> getActiveNodes() {
+	public synchronized List<RemoteNode> getActiveNodes() {
 		return Collections.unmodifiableList(activeNodes);
 	}
 	
@@ -218,7 +208,7 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	 * @param rn the node to add
 	 * @return True if the node was an addition to the list, false if the node was already known.
 	 */
-	public boolean addDiscoveredNode(RemoteNode rn){
+	public synchronized boolean addDiscoveredNode(RemoteNode rn){
 		if(!activeNodes.contains(rn)){
 			activeNodes.add(rn);
 			rn.addEventListener(this);
@@ -237,7 +227,7 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	 * @return A randomly selected node from the active node list.
 	 */
 	//TODO: This should return unmodifiable RemoteNodes
-	public RemoteNode getReplacement(RemoteNode r){
+	public synchronized RemoteNode getReplacement(RemoteNode r){
 		//See if r is offline
 		//TODO: This is to fix synchronization issues.
 		r.removeEventListener(this);
@@ -266,7 +256,7 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	 * @return A list of <i>count</i> remote nodes.
 	 */
 	//TODO: This should return unmodifiable RemoteNodes
-	public List<RemoteNode> getNodes(int count){
+	public synchronized List<RemoteNode> getNodes(int count){
 		if(count == -1)
 			return getActiveNodes();
 		List<RemoteNode> ans = getActiveNodes();
@@ -307,7 +297,7 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 
 	@Override
 	//TODO: Handling of these state changes should be re-examined.
-	public void nodeStateChanged(RemoteNode node, NodeState state) {
+	public synchronized void nodeStateChanged(RemoteNode node, NodeState state) {
 		switch(state){
 			case SHUTTING_DOWN:
 				node.removeEventListener(this);
@@ -321,9 +311,16 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	}
 
 	@Override
-	public void nodeConnectionFailed(RemoteNode node) {
+	public synchronized void nodeConnectionFailed(RemoteNode node) {
 		// TODO A connection error could be indicative of a node changing IP / Port numbers. Should there be a grace period before removing? (Shouldn't matter until node ID's are implemented)
 		node.removeEventListener(this);
 		activeNodes.remove(node);
+	}
+	
+	/**
+	 * <p>Stops the NetworkManager from beaconing other nodes.</p>
+	 */
+	public void stop(){
+		future.cancel(false);
 	}
 }

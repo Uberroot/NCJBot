@@ -6,6 +6,7 @@ import java.util.Hashtable;
 import java.util.List;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import com.github.uberroot.ncjbot.api.ProcessorJob;
 import com.github.uberroot.ncjbot.api.ProcessorJobEnvironment;
@@ -63,6 +64,11 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	private ServerThread servThread;
 	
 	/**
+	 * <p>The ScheduledThreadPoolExecutor used for centralized delayed callbacks.</p>
+	 */
+	private ScheduledThreadPoolExecutor executor;
+	
+	/**
 	 * <p>Entry point for the program. This loads the sole ProcessorNode instance.</p>
 	 * 
 	 * @see ProcessorNode#ProcessorNode()
@@ -100,6 +106,9 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 		listenPort = scan.nextInt();
 		scan.nextLine();
 		
+		//Create the executor service
+		executor = new ScheduledThreadPoolExecutor(2); //TODO: This should be configurable.
+		
 		//Start the watchdog
 		System.out.print("Starting watchdog...");
 		watchdog = new Watchdog(this);
@@ -108,7 +117,6 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 		
 		//Run the network manager
 		netMgr = new NetworkManager(this, seedNodes);//TODO: The network should not be joined until the server is running
-		netMgr.start();
 	
 		//Open socket and respond to requests
 		//TODO: This access pattern should change. The socket should be created outside of the thread that queries it.
@@ -197,8 +205,9 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 		//TODO: Graceful network removal should occur, but may not be necessary for the current lazy communication model
 		if(servThread != null)
 			servThread.kill();
-		netMgr.interrupt();
+		netMgr.stop();
 		watchdog.kill();
+		executor.shutdown();
 		System.exit(0);
 	}
 	
@@ -334,6 +343,15 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	 */
 	public Watchdog getWatchdog(){
 		return watchdog;
+	}
+	
+	/**
+	 * Gets the ScheduledThreadPoolExecutor used for timed callbacks.
+	 * 
+	 * @return The ScheduledThreadPoolExecutor used for timed callbacks.
+	 */
+	public ScheduledThreadPoolExecutor getExecutor(){
+		return executor;
 	}
 
 	@Override

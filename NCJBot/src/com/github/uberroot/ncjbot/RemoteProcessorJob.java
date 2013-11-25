@@ -78,4 +78,9 @@ public final class RemoteProcessorJob {
 	public void sendData(byte data[]) throws IOException, NodeStateException{ //TODO: Enforce linkages between jobs and remote jobs to prevent spoofing
 		source.sendData(remoteTid, data);
 	}
+	
+	@Override
+	public String toString(){
+		return source.toString() + "_" + remoteTid;
+	}
 }

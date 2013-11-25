@@ -13,6 +13,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Vector;
 
 
 /**
@@ -23,10 +24,36 @@ import java.util.List;
 //TODO: This should encapsulate a meta-class that handles ALL client socket code. Meta class methods will not automatically close sockets for efficiency.
 //TODO: The method used for node identification should be updated, possibly using asymmetric cryptography.
 //TODO: Should InetSocketAddress be used?
-//TODO: Throw exceptions on socket errors
 //TODO: Add ability to check for info about system a node runs on.
-//TODO: A better communication model between RemoteNodes and NetworkManagers needs to be established (a listener model?)
+//TODO: All methods should be synchronized (requires testing)
 public final class RemoteNode {
+	
+	/**
+	 * An interface to receive events that occur with a remote node.
+	 * 
+	 * @author Carter Waxman
+	 *
+	 */
+	public interface EventListener extends java.util.EventListener{
+		/**
+		 * <p>This method is called whenever a change is detected in the state of a node.</p>
+		 * 
+		 * @param node The node that changed state.
+		 * @param state The new state of the node.
+		 */
+		public void nodeStateChanged(RemoteNode node, NodeState state);
+		
+		/**
+		 * <p>This method is called to indicate a communication error occurred while connecting to or
+		 * communicating with the given node.</p>
+		 * 
+		 * @param node The node with which the error occurred.
+		 */
+		public void nodeConnectionFailed(RemoteNode node);
+	}
+	
+	private Vector<EventListener> listeners;
+	
 	/**
 	 * <p>The running ProcessorNode instance.</p>
 	 */
@@ -43,8 +70,14 @@ public final class RemoteNode {
 	private InetAddress ipAddress;
 	
 	/**
+	 * The last confirmed state of the node.
+	 */
+	private NodeState state;
+	
+	/**
 	 * A unique hash for the address-port paring. This is recalculated when either value changes.
 	 */
+	//TODO: This should be based on sequential / random ID numbers generated when a node joins a network (A Node ID). UUID class???
 	private int hashCode; //TODO: THIS PROBABLY COLLIDES.
 	
 	/**
@@ -59,6 +92,8 @@ public final class RemoteNode {
 		this.node = node;
 		setIpAddress(ip);
 		setListeningPort(port);
+		state = NodeState.UNKNOWN;
+		listeners = new Vector<EventListener>();
 	}
 	
 	//TODO: The following private setters may need to become public if asymmetric cryptography is used for identification, allowing nodes to become aware of ip address changes.
@@ -68,7 +103,7 @@ public final class RemoteNode {
 	 * @param ip The new ip address or hostname.
 	 * @throws UnknownHostException
 	 */
-	private void setIpAddress(String ip) throws UnknownHostException{
+	private synchronized void setIpAddress(String ip) throws UnknownHostException{
 		ipAddress = InetAddress.getByName(ip);
 	}
 	
@@ -76,7 +111,7 @@ public final class RemoteNode {
 	 * Sets the TCP port used to connect to the remote node.
 	 * @param port The new TCP port.
 	 */
-	private void setListeningPort(int port){
+	private synchronized void setListeningPort(int port){
 		listeningPort = port;
 		rehash();
 	}
@@ -85,7 +120,7 @@ public final class RemoteNode {
 	 * Gets the IPv4 address of the remote node.
 	 * @return The IPv4 address of the remote node.
 	 */
-	public InetAddress getIpAddress(){
+	public synchronized InetAddress getIpAddress(){
 		return ipAddress;
 	}
 
@@ -93,8 +128,17 @@ public final class RemoteNode {
 	 * Gets the listening port of the remote node.
 	 * @return The listening port of the remote node
 	 */
-	public int getListeningPort(){
+	public synchronized int getListeningPort(){
 		return listeningPort;
+	}
+	
+	/**
+	 * Gets the last confirmed state of the RemoteNode. This state is queried only when an operation is performed on the node.
+	 * 
+	 * @return the last confirmed state of the RemoteNode.
+	 */
+	public synchronized NodeState getNodeState(){
+		return state;
 	}
 
 	/**
@@ -104,7 +148,7 @@ public final class RemoteNode {
 	 * @return True if the nodes match, false if they do not.
 	 */
 	@Override
-	public boolean equals(Object o){
+	public synchronized boolean equals(Object o){
 		if(o.getClass() == RemoteNode.class){
 			RemoteNode other = (RemoteNode)o;
 			if(other.ipAddress.equals(ipAddress) && other.listeningPort == listeningPort)
@@ -119,7 +163,7 @@ public final class RemoteNode {
 	 * @return The string describing the remote node.
 	 */
 	@Override
-	public String toString(){
+	public synchronized String toString(){
 		return ipAddress.getHostAddress() + ":" + listeningPort;
 	}
 	
@@ -160,7 +204,7 @@ public final class RemoteNode {
 	 * @throws IOException 
 	 * @throws NodeStateException 
 	 */
-	public List<RemoteNode> getKnownNodes() throws IOException, NodeStateException{
+	public synchronized List<RemoteNode> getKnownNodes() throws IOException, NodeStateException{
 		ArrayList<RemoteNode> ret = new ArrayList<RemoteNode>();
 		
 		//Try to create socket
@@ -174,6 +218,7 @@ public final class RemoteNode {
 				in.read(buffer);
 				
 				if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
+					setState(NodeState.RUNNING);
 					System.out.println("Node is active");
 					System.out.print("Retreiving node list...\t");
 					s.getOutputStream().write("Who do you know?".getBytes());
@@ -195,17 +240,22 @@ public final class RemoteNode {
 						}
 					}
 				}
-				else if(String.valueOf(buffer).trim().equals("I'm bleeding out."))
+				else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
 					//Node is shutting down
+					setState(NodeState.SHUTTING_DOWN);
 					throw new NodeStateException(NodeState.SHUTTING_DOWN);
-				else
+				}
+				else{
 					//Unknown node state
+					setState(NodeState.UNKNOWN);
 					throw new NodeStateException(NodeState.UNKNOWN);
+				}
 				
 				//Allow the server to close the connection
 				s.getOutputStream().write("Goodbye.".getBytes());
 		} catch (IOException e) {
 			//Communication error of some sort. Throw exception and fall through to the socket closure.
+			nodeConnectionFailed();
 			throw e;
 		}
 		finally{
@@ -229,7 +279,7 @@ public final class RemoteNode {
 	//TODO: Abstract the data storage and account for size and performance issues automatically
 	//TODO: This method should be merged with RemoteProcessorJob.sendData(byte[])
 	//TODO: Failure here needs to make its way to the network manager
-	public void sendData(String destTid, byte[] data) throws IOException, NodeStateException{
+	public synchronized void sendData(String destTid, byte[] data) throws IOException, NodeStateException{
 		//Try to create socket
 		Socket s = new Socket(ipAddress, listeningPort);
 		
@@ -242,6 +292,7 @@ public final class RemoteNode {
 			in.read(buffer);
 			
 			if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
+				setState(NodeState.RUNNING);
 				s.getOutputStream().write("I have results.".getBytes());
 				in.read(buffer); //What did you find?
 				
@@ -256,16 +307,21 @@ public final class RemoteNode {
 				s.getOutputStream().write((data.length + "\n").getBytes());
 				s.getOutputStream().write(data);
 			}
-			else if(String.valueOf(buffer).trim().equals("I'm bleeding out."))
+			else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
 				//Node is shutting down
+				setState(NodeState.SHUTTING_DOWN);
 				throw new NodeStateException(NodeState.SHUTTING_DOWN);
-			else
+			}
+			else{
 				//Unknown node state
+				setState(NodeState.UNKNOWN);
 				throw new NodeStateException(NodeState.UNKNOWN);
+			}
 			s.getOutputStream().write("Goodbye.".getBytes());
 			s.close();
 		} catch (IOException e) {
 			//Communication error of some sort. Throw exception and fall through to the socket closure.
+			nodeConnectionFailed();
 			throw e;
 		}
 		finally{
@@ -293,7 +349,7 @@ public final class RemoteNode {
 	//TODO: An additional parameter should be provided to allow the Watchdog functionality to be toggled
 	//TODO: Add job state tracking.
 	//TODO: Failure here needs to make its way to the network manager
-	public long sendJob(long ownerTid, File worker, byte[] params) throws IOException, NodeStateException{
+	public synchronized long sendJob(long ownerTid, File worker, byte[] params) throws IOException, NodeStateException{
 		long ret = 0;
 		
 		//Try to create socket
@@ -308,6 +364,7 @@ public final class RemoteNode {
 			in.read(buffer);
 			
 			if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
+				setState(NodeState.RUNNING);
 				s.getOutputStream().write("I have a job for you.".getBytes());
 				in.read(buffer); //What will I need?
 				
@@ -337,15 +394,20 @@ public final class RemoteNode {
 				ret= Long.valueOf(in.readLine());
 				node.getWatchdog().registerReceiver(this);
 			}
-			else if(String.valueOf(buffer).trim().equals("I'm bleeding out."))
+			else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
 				//Node is shutting down
+				setState(NodeState.SHUTTING_DOWN);
 				throw new NodeStateException(NodeState.SHUTTING_DOWN);
-			else
+			}
+			else{
 				//Unknown node state
+				setState(NodeState.UNKNOWN);
 				throw new NodeStateException(NodeState.UNKNOWN);
+			}
 			s.getOutputStream().write("Goodbye.".getBytes());
 		} catch (IOException e) {
 			//Communication error of some sort. Throw exception and fall through to the socket closure.
+			nodeConnectionFailed();
 			throw e;
 		}
 		finally{
@@ -356,13 +418,14 @@ public final class RemoteNode {
 	}
 
 	/**
-	 * <p>Alerts the RemoteNode to the presence of this node.</p>
+	 * <p>Alerts the RemoteNode to the presence of this node. This is used to join into a network and to
+	 * alert the RemoteNode that the current node is still active.</p>
 	 * 
 	 * @throws IOException 
 	 * @throws NodeStateException 
 	 */
 	//TODO: Failure here needs to make its way to the network manager
-	public void beacon() throws IOException, NodeStateException{
+	public synchronized void beacon() throws IOException, NodeStateException{
 		//Try to create socket
 		Socket s = new Socket(ipAddress, listeningPort);
 		
@@ -375,20 +438,25 @@ public final class RemoteNode {
 				
 				//Announce presence
 				if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
+					setState(NodeState.RUNNING);
 					s.getOutputStream().write(("I'm here.\n" + node.getListenPort()).getBytes());
 					
 					//TODO: should this actually be read? It tells whether the other node knew of this one.
 					in.read(buffer); //To ensure flow control
 				}
-				else if(String.valueOf(buffer).trim().equals("I'm bleeding out."))
+				else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
+					setState(NodeState.SHUTTING_DOWN);
 					throw new NodeStateException(NodeState.SHUTTING_DOWN);
-				else
+				}
+				else{
+					setState(NodeState.UNKNOWN);
 					throw new NodeStateException(NodeState.UNKNOWN);
+				}
 				s.getOutputStream().write("Goodbye.".getBytes());
 		} catch (IOException e) {
 			//The connection was interrupted for some reason...
-			System.out.println("Unable to determine node state");
-			//node.announceNodeFailure(activeNodes.remove(i--));	
+			nodeConnectionFailed();
+			System.out.println("Unable to determine node state");	
 		}
 		finally{
 			//Close the socket
@@ -403,12 +471,13 @@ public final class RemoteNode {
 	 * @deprecated This will be removed soon as it can be replaced entirely with exception handling and listener objects
 	 * @return True if a connection could be established, false otherwise.
 	 */
-	public boolean canConnect(){
+	public synchronized boolean canConnect(){
 		Socket s = null;
 		try {
 			s = new Socket(getIpAddress(), getListeningPort());
 		} catch (IOException e) {
 			//If here, either host doesn't exist, or is not listening on the port
+			nodeConnectionFailed();
 			return false;
 		}
 		try {
@@ -418,5 +487,52 @@ public final class RemoteNode {
 			
 		}
 		return true;
+	}
+	
+	/**
+	 * <p>Registers a RemoteNode.EventListener for this RemoteNode.</p>
+	 * 
+	 * @param listener The RemoteNode.EventListener to add.
+	 */
+	public synchronized void addEventListener(EventListener listener){
+		listeners.add(listener);
+	}
+	
+	/**
+	 * <p>Removes a RemoteNode.EventListener from this RemoteNode.</p>
+	 * 
+	 * @param listener The RemoteNode.EventListener to remove.
+	 * @return True if the listener was operating on this RemoteNode. 
+	 */
+	public synchronized boolean removeEventListener(EventListener listener){
+		return listeners.remove(listener);
+	}
+	
+	/**
+	 * <p>Sets the new state for the RemoteNode and notifies listeners if the new state is different from the current state.</p>
+	 * 
+	 * @param state The new node state.
+	 */
+	private synchronized void setState(NodeState state){
+		NodeState old = this.state;
+		this.state = state;
+		if(old != state)
+			nodeStateChanged();
+	}
+	
+	/**
+	 * <p>Notifies all event listeners for this RemoteNode of a state change event.</p>
+	 */
+	private synchronized void nodeStateChanged(){
+		for(EventListener e : listeners)
+			e.nodeStateChanged(this, state);
+	}
+	
+	/**
+	 * <p>Notifies all event listeners of a connection failure with this RemoteNode.</p>
+	 */
+	private synchronized void nodeConnectionFailed(){
+		for(EventListener e : listeners)
+			e.nodeConnectionFailed(this);
 	}
 }

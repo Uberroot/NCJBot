@@ -5,6 +5,7 @@ import com.github.uberroot.ncjbot.RemoteNode;
 /**
  * <p>A public-safe wrapper for {@link com.github.uberroot.ncjbot.Watchdog}.</p>
  * 
+ * @deprecated This entire class will be removed from the public API and it's functionality will be provided automatically.
  * @author Carter Waxman
  *
  */

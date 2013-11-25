@@ -55,7 +55,9 @@ import java.util.Random;
 //TODO: This should be a singleton class
 //TODO: This functionality will be moved away from it's own thread and into centralized timing
 //TODO: This shouldn't be a Thread subclass as it exposes public methods through thread enumeration
-public final class NetworkManager extends Thread implements UnsafeObject<com.github.uberroot.ncjbot.api.NetworkManager>{
+//TODO: All of these methods need the synchronized specifier (Must not be a thread subclass). This will make EventListener logic less complex (requires testing)
+//TODO: There should be a method for internal removal of nodes
+public final class NetworkManager extends Thread implements UnsafeObject<com.github.uberroot.ncjbot.api.NetworkManager>, RemoteNode.EventListener{
 	/**
 	 * <p>The running ProcessorNode instance.</p>
 	 */
@@ -105,6 +107,9 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 					case UNKNOWN:{
 						//Unknown or running. Either way, track it.
 						activeNodes.add(n);
+						
+						//Register as the RemoteNode.EventListener
+						n.addEventListener(this);
 						break;
 					}
 				}
@@ -114,12 +119,18 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 			//No exceptions, add the seed node
 			activeNodes.add(n);
 			
-			//Add the seed knows
+			//Add the retrieved nodes
 			for(RemoteNode n1 : l)
 				if(!activeNodes.contains(n1)){
 					activeNodes.add(n1);
 					node.announceFoundNode(n1);
+					
+					//Register as the RemoteNode.EventListener
+					n1.addEventListener(this);
 				}
+			
+			//Register as the RemoteNode.EventListener
+			n.addEventListener(this);
 		}
 		
 		//Are there nodes?
@@ -146,7 +157,12 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 					for(int i = 0; i < activeNodes.size(); i++){
 						RemoteNode n = activeNodes.get(i);
 						try {
+							//Temporarily remove self from the listener.
+							//TODO: This is to fix synchronization issues.
+							n.removeEventListener(this);
 							n.beacon();
+							//TODO: This is to fix synchronization issues.
+							n.addEventListener(this);
 						}
 						catch (ConnectException e) { //Could not connect
 							//If here, either host doesn't exist, or is not listening on the port
@@ -205,6 +221,7 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	public boolean addDiscoveredNode(RemoteNode rn){
 		if(!activeNodes.contains(rn)){
 			activeNodes.add(rn);
+			rn.addEventListener(this);
 			node.announceFoundNode(rn);
 			return true;
 		}
@@ -222,11 +239,15 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	//TODO: This should return unmodifiable RemoteNodes
 	public RemoteNode getReplacement(RemoteNode r){
 		//See if r is offline
+		//TODO: This is to fix synchronization issues.
+		r.removeEventListener(this);
 		if(!r.canConnect()){
 			//If here, either host doesn't exist, or is not listening on the port
 			System.out.println("Removing unresponsive node");
 			activeNodes.remove(r);
 		}
+		//TODO: This is to fix synchronization issues.
+		r.addEventListener(this);
 		
 		//Select a new node
 		Random rand = new Random();
@@ -282,5 +303,27 @@ public final class NetworkManager extends Thread implements UnsafeObject<com.git
 	@Override
 	public com.github.uberroot.ncjbot.api.NetworkManager getSafeObject() {
 		return new com.github.uberroot.ncjbot.api.NetworkManager(this);
+	}
+
+	@Override
+	//TODO: Handling of these state changes should be re-examined.
+	public void nodeStateChanged(RemoteNode node, NodeState state) {
+		switch(state){
+			case SHUTTING_DOWN:
+				node.removeEventListener(this);
+				activeNodes.remove(node);
+				break;
+			case RUNNING:
+			case UNKNOWN:
+			default:
+				break;
+		}
+	}
+
+	@Override
+	public void nodeConnectionFailed(RemoteNode node) {
+		// TODO A connection error could be indicative of a node changing IP / Port numbers. Should there be a grace period before removing? (Shouldn't matter until node ID's are implemented)
+		node.removeEventListener(this);
+		activeNodes.remove(node);
 	}
 }

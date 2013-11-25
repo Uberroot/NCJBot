@@ -107,7 +107,7 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 		System.out.println("done");
 		
 		//Run the network manager
-		netMgr = new NetworkManager(this, seedNodes);
+		netMgr = new NetworkManager(this, seedNodes);//TODO: The network should not be joined until the server is running
 		netMgr.start();
 	
 		//Open socket and respond to requests

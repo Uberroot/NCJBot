@@ -19,7 +19,7 @@ ADD: Commanding node failover (to operate by replicating state to subset of peer
 ADD: Inter-job streaming
 CHANGE: Conversion of Watchdog class to a central timing class to handle other timing functions and reduce number of threads needed
  - The primary timer would run on a single dedicated thread. The callbacks used will execute on threads from a timing threadpool
- - Just use the Timer class
+ - Just use the ExecutorService class
 ADD: Timeouts on server sessions (possibly implemented using centralized timing)
 ADD: SecurityManager that operates at the thread level
 ADD: (other access controls... needs to be researched)
@@ -73,7 +73,7 @@ ADD: Job state tracking
 CHANGE: Log outputs from classes under separate tags / streams
 ADD: ConnectionManager class for handling low-level socket code / multiplexing
  - Should include sister class for performing atomic actions over the network (NetworkSequence + NetworkOperation classes?)
-
+CHANGE: Rings of security could be implemented using inherited interfaces with ever increasing functionality
 
 Configurables to add:
 seeds for initial connections

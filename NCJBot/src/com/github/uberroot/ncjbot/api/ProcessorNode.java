@@ -35,6 +35,7 @@ public final class ProcessorNode {
 	/**
 	 * <p>Gets the current port on which the server socket should listen.</p>
 	 * 
+	 * @deprecated This should not be accessable to non-privalged jobs as it breaks the abstraction between the network and job.
 	 * @return The current port on which the server socket should listen.
 	 */
 	public int getListenPort(){

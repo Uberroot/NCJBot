@@ -6,7 +6,6 @@ package com.github.uberroot.ncjbot;
  * @author Carter Waxman
  *
  */
-//TODO: separate subclasses should exist for each state
 public class NodeStateException extends NCJBotException {
 	private NodeState state;
 	

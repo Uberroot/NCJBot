@@ -278,7 +278,6 @@ public final class RemoteNode {
 	 */
 	//TODO: Abstract the data storage and account for size and performance issues automatically
 	//TODO: This method should be merged with RemoteProcessorJob.sendData(byte[])
-	//TODO: Failure here needs to make its way to the network manager
 	public synchronized void sendData(String destTid, byte[] data) throws IOException, NodeStateException{
 		//Try to create socket
 		Socket s = new Socket(ipAddress, listeningPort);
@@ -348,7 +347,6 @@ public final class RemoteNode {
 	//TODO: This should return a RemoteProcessorJob
 	//TODO: An additional parameter should be provided to allow the Watchdog functionality to be toggled
 	//TODO: Add job state tracking.
-	//TODO: Failure here needs to make its way to the network manager
 	public synchronized long sendJob(long ownerTid, File worker, byte[] params) throws IOException, NodeStateException{
 		long ret = 0;
 		
@@ -392,7 +390,7 @@ public final class RemoteNode {
 				
 				//Await remote process id
 				ret= Long.valueOf(in.readLine());
-				node.getWatchdog().registerReceiver(this);
+				//node.getWatchdog().registerReceiver(this);
 			}
 			else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
 				//Node is shutting down
@@ -424,7 +422,6 @@ public final class RemoteNode {
 	 * @throws IOException 
 	 * @throws NodeStateException 
 	 */
-	//TODO: Failure here needs to make its way to the network manager
 	public synchronized void beacon() throws IOException, NodeStateException{
 		//Try to create socket
 		Socket s = new Socket(ipAddress, listeningPort);

@@ -74,6 +74,7 @@ CHANGE: Log outputs from classes under separate tags / streams
 ADD: ConnectionManager class for handling low-level socket code / multiplexing
  - Should include sister class for performing atomic actions over the network (NetworkSequence + NetworkOperation classes?)
 CHANGE: Rings of security could be implemented using inherited interfaces with ever increasing functionality
+ADD: Ability to move dispatchers between nodes on command and on failure
 
 Configurables to add:
 seeds for initial connections

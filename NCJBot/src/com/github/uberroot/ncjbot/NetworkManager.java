@@ -227,18 +227,7 @@ public final class NetworkManager implements Runnable, UnsafeObject<com.github.u
 	 * @return A randomly selected node from the active node list.
 	 */
 	//TODO: This should return unmodifiable RemoteNodes
-	public synchronized RemoteNode getReplacement(RemoteNode r){
-		//See if r is offline
-		//TODO: This is to fix synchronization issues.
-		r.removeEventListener(this);
-		if(!r.canConnect()){
-			//If here, either host doesn't exist, or is not listening on the port
-			System.out.println("Removing unresponsive node");
-			activeNodes.remove(r);
-		}
-		//TODO: This is to fix synchronization issues.
-		r.addEventListener(this);
-		
+	public synchronized RemoteNode getReplacement(RemoteNode r){		
 		//Select a new node
 		Random rand = new Random();
 		ArrayList<RemoteNode> pool = new ArrayList<RemoteNode>(activeNodes);
@@ -315,6 +304,7 @@ public final class NetworkManager implements Runnable, UnsafeObject<com.github.u
 		// TODO A connection error could be indicative of a node changing IP / Port numbers. Should there be a grace period before removing? (Shouldn't matter until node ID's are implemented)
 		node.removeEventListener(this);
 		activeNodes.remove(node);
+		System.out.println("Removing unreliable node");
 	}
 	
 	/**

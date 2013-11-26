@@ -29,7 +29,10 @@ import java.util.Vector;
 public final class RemoteNode {
 	
 	/**
-	 * An interface to receive events that occur with a remote node.
+	 * <p>An interface to receive events that occur with a remote node. All of the listeners that were registered
+	 * when a method is first invoked will be notified, even if removed from within a callback. Likewise, new listeners will not
+	 * receive the current event if it is added during the event callback. The new collection of EventListeners
+	 * will take effect upon completion of said method.</p>
 	 * 
 	 * @author Carter Waxman
 	 *
@@ -52,6 +55,9 @@ public final class RemoteNode {
 		public void nodeConnectionFailed(RemoteNode node);
 	}
 	
+	/**
+	 * <p>The vector for holding all event listeners</p>
+	 */
 	private Vector<EventListener> listeners;
 	
 	/**
@@ -173,7 +179,7 @@ public final class RemoteNode {
 	 * @return The hash code generated.
 	 */
 	@Override
-	public int hashCode(){
+	public synchronized int hashCode(){
 		return hashCode;
 	}
 	
@@ -206,53 +212,54 @@ public final class RemoteNode {
 	 */
 	public synchronized List<RemoteNode> getKnownNodes() throws IOException, NodeStateException{
 		ArrayList<RemoteNode> ret = new ArrayList<RemoteNode>();
-		
-		//Try to create socket
-		Socket s = new Socket(ipAddress, listeningPort); //Could throw a ConnectionException
 
-		//See if node is active
+		Socket s = null;
 		try {
-				char buffer[] = new char[1500];
-				BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
-				s.getOutputStream().write("Are you alive?".getBytes());
+			//Try to create socket
+			s = new Socket(ipAddress, listeningPort); //Could throw a ConnectionException
+			
+			//See if node is active
+			char buffer[] = new char[1500];
+			BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+			s.getOutputStream().write("Are you alive?".getBytes());
+			in.read(buffer);
+			
+			if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
+				setState(NodeState.RUNNING);
+				System.out.println("Node is active");
+				System.out.print("Retreiving node list...\t");
+				s.getOutputStream().write("Who do you know?".getBytes());
+				buffer = new char[1500];
 				in.read(buffer);
+				String[] nodeStrings = String.valueOf(buffer).trim().split("\n");
 				
-				if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
-					setState(NodeState.RUNNING);
-					System.out.println("Node is active");
-					System.out.print("Retreiving node list...\t");
-					s.getOutputStream().write("Who do you know?".getBytes());
-					buffer = new char[1500];
-					in.read(buffer);
-					String[] nodeStrings = String.valueOf(buffer).trim().split("\n");
+				//Parse the node list from this node
+				for(String ns : nodeStrings){
+					if(!ns.matches("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+"))
+						continue; //TODO: Should this throw a malformed data exception?
+					String[] pair = ns.split(":");
+					RemoteNode rn = new RemoteNode(node, pair[0], Integer.valueOf(pair[1]));
 					
-					//Parse the node list from this node
-					for(String ns : nodeStrings){
-						if(!ns.matches("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+"))
-							continue; //TODO: Should this throw a malformed data exception?
-						String[] pair = ns.split(":");
-						RemoteNode rn = new RemoteNode(node, pair[0], Integer.valueOf(pair[1]));
-						
-						//Add the new node to this node's active node list
-						if(!ret.contains(rn)){
-							ret.add(rn);
-							node.announceFoundNode(rn);
-						}
+					//Add the new node to this node's active node list
+					if(!ret.contains(rn)){
+						ret.add(rn);
+						node.announceFoundNode(rn);
 					}
 				}
-				else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
-					//Node is shutting down
-					setState(NodeState.SHUTTING_DOWN);
-					throw new NodeStateException(NodeState.SHUTTING_DOWN);
-				}
-				else{
-					//Unknown node state
-					setState(NodeState.UNKNOWN);
-					throw new NodeStateException(NodeState.UNKNOWN);
-				}
+			}
+			else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
+				//Node is shutting down
+				setState(NodeState.SHUTTING_DOWN);
+				throw new NodeStateException(NodeState.SHUTTING_DOWN);
+			}
+			else{
+				//Unknown node state
+				setState(NodeState.UNKNOWN);
+				throw new NodeStateException(NodeState.UNKNOWN);
+			}
 				
-				//Allow the server to close the connection
-				s.getOutputStream().write("Goodbye.".getBytes());
+			//Allow the server to close the connection
+			s.getOutputStream().write("Goodbye.".getBytes());
 		} catch (IOException e) {
 			//Communication error of some sort. Throw exception and fall through to the socket closure.
 			nodeConnectionFailed();
@@ -260,7 +267,8 @@ public final class RemoteNode {
 		}
 		finally{
 			//Close the socket
-			s.close();
+			if(s != null)
+				s.close();
 		}
 		
 		return ret;
@@ -279,10 +287,11 @@ public final class RemoteNode {
 	//TODO: Abstract the data storage and account for size and performance issues automatically
 	//TODO: This method should be merged with RemoteProcessorJob.sendData(byte[])
 	public synchronized void sendData(String destTid, byte[] data) throws IOException, NodeStateException{
-		//Try to create socket
-		Socket s = new Socket(ipAddress, listeningPort);
-		
+		Socket s = null;
 		try {
+			//Try to create socket
+			s = new Socket(ipAddress, listeningPort);
+			
 			char buffer[] = new char[1500];
 			BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
 			
@@ -325,7 +334,8 @@ public final class RemoteNode {
 		}
 		finally{
 			//Close the socket
-			s.close();
+			if(s != null)
+				s.close();
 		}
 	}
 	
@@ -350,10 +360,11 @@ public final class RemoteNode {
 	public synchronized long sendJob(long ownerTid, File worker, byte[] params) throws IOException, NodeStateException{
 		long ret = 0;
 		
-		//Try to create socket
-		Socket s = new Socket(ipAddress, listeningPort);
-		
+		Socket s = null;
 		try {
+			//Try to create socket
+			s = new Socket(ipAddress, listeningPort);
+			
 			char buffer[] = new char[1500];
 			BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
 			
@@ -410,7 +421,8 @@ public final class RemoteNode {
 		}
 		finally{
 			//Close the socket
-			s.close();
+			if(s != null)
+				s.close();
 		}
 		return ret;
 	}
@@ -423,33 +435,34 @@ public final class RemoteNode {
 	 * @throws NodeStateException 
 	 */
 	public synchronized void beacon() throws IOException, NodeStateException{
-		//Try to create socket
-		Socket s = new Socket(ipAddress, listeningPort);
-		
-		//See if node is active
+		Socket s = null;
 		try {
-				char buffer[] = new char[1500];
-				BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
-				s.getOutputStream().write("Are you alive?".getBytes());
-				in.read(buffer);
+			//Try to create socket
+			s = new Socket(ipAddress, listeningPort);
+			
+			//See if node is active
+			char buffer[] = new char[1500];
+			BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+			s.getOutputStream().write("Are you alive?".getBytes());
+			in.read(buffer);
 				
-				//Announce presence
-				if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
-					setState(NodeState.RUNNING);
-					s.getOutputStream().write(("I'm here.\n" + node.getListenPort()).getBytes());
-					
-					//TODO: should this actually be read? It tells whether the other node knew of this one.
-					in.read(buffer); //To ensure flow control
-				}
-				else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
-					setState(NodeState.SHUTTING_DOWN);
-					throw new NodeStateException(NodeState.SHUTTING_DOWN);
-				}
-				else{
-					setState(NodeState.UNKNOWN);
-					throw new NodeStateException(NodeState.UNKNOWN);
-				}
-				s.getOutputStream().write("Goodbye.".getBytes());
+			//Announce presence
+			if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
+				setState(NodeState.RUNNING);
+				s.getOutputStream().write(("I'm here.\n" + node.getListenPort()).getBytes());
+				
+				//TODO: should this actually be read? It tells whether the other node knew of this one.
+				in.read(buffer); //To ensure flow control
+			}
+			else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
+				setState(NodeState.SHUTTING_DOWN);
+				throw new NodeStateException(NodeState.SHUTTING_DOWN);
+			}
+			else{
+				setState(NodeState.UNKNOWN);
+				throw new NodeStateException(NodeState.UNKNOWN);
+			}
+			s.getOutputStream().write("Goodbye.".getBytes());
 		} catch (IOException e) {
 			//The connection was interrupted for some reason...
 			nodeConnectionFailed();
@@ -457,33 +470,9 @@ public final class RemoteNode {
 		}
 		finally{
 			//Close the socket
-			s.close();
-		}
-	}
-	
-	
-	/**
-	 * Determines if it is possible to establish a connection with the node.
-	 * 
-	 * @deprecated This will be removed soon as it can be replaced entirely with exception handling and listener objects
-	 * @return True if a connection could be established, false otherwise.
-	 */
-	public synchronized boolean canConnect(){
-		Socket s = null;
-		try {
-			s = new Socket(getIpAddress(), getListeningPort());
-		} catch (IOException e) {
-			//If here, either host doesn't exist, or is not listening on the port
-			nodeConnectionFailed();
-			return false;
-		}
-		try {
 			if(s != null)
 				s.close();
-		} catch (IOException e) {
-			
 		}
-		return true;
 	}
 	
 	/**
@@ -518,18 +507,26 @@ public final class RemoteNode {
 	}
 	
 	/**
-	 * <p>Notifies all event listeners for this RemoteNode of a state change event.</p>
+	 * <p>Notifies all event listeners for this RemoteNode of a state change event. All of the listeners that were registered
+	 * when the method was first invoked will be notified, even if removed from a callback. Likewise, new listeners will not
+	 * receive the current event if it is added during the event callback. The new collection of EventListeners
+	 * will take effect upon completion of this method.</p>
 	 */
 	private synchronized void nodeStateChanged(){
-		for(EventListener e : listeners)
+		Vector<EventListener> temp = new Vector<EventListener>(listeners);
+		for(EventListener e : temp)
 			e.nodeStateChanged(this, state);
 	}
 	
 	/**
-	 * <p>Notifies all event listeners of a connection failure with this RemoteNode.</p>
+	 * <p>Notifies all event listeners of a connection failure with this RemoteNode. All of the listeners that were registered
+	 * when the method was first invoked will be notified, even if removed from a callback. Likewise, new listeners will not
+	 * receive the current event if it is added during the event callback. The new collection of EventListeners
+	 * will take effect upon completion of this method.</p>
 	 */
 	private synchronized void nodeConnectionFailed(){
-		for(EventListener e : listeners)
+		Vector<EventListener> temp = new Vector<EventListener>(listeners);
+		for(EventListener e : temp)
 			e.nodeConnectionFailed(this);
 	}
 }

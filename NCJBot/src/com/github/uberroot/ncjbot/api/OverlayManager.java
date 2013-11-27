@@ -5,23 +5,23 @@ import java.util.List;
 import com.github.uberroot.ncjbot.RemoteNode;
 
 /**
- * <p>A public-safe wrapper for {@link com.github.uberroot.ncjbot.NetworkManager}.</p>
+ * <p>A public-safe wrapper for {@link com.github.uberroot.ncjbot.OverlayManager}.</p>
  * 
  * @author Carter Waxman
  *
  */
-public final class NetworkManager {
+public final class OverlayManager {
 	/**
-	 * <p>The actual NetworkManager.</p>
+	 * <p>The actual OverlayManager.</p>
 	 */
-	private final com.github.uberroot.ncjbot.NetworkManager manager;
+	private final com.github.uberroot.ncjbot.OverlayManager manager;
 	
 	/**
-	 * <p>Initializes this public-safe NetworkManager with an actual NetworkManager.</p>
+	 * <p>Initializes this public-safe OverlayManager with an actual OverlayManager.</p>
 	 * 
-	 * @param manager The actual NetworkManager.
+	 * @param manager The actual OverlayManager.
 	 */
-	public NetworkManager(com.github.uberroot.ncjbot.NetworkManager manager){
+	public OverlayManager(com.github.uberroot.ncjbot.OverlayManager manager){
 		this.manager = manager;
 	}
 

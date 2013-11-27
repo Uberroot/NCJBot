@@ -3,23 +3,23 @@ package com.github.uberroot.ncjbot.api;
 import com.github.uberroot.ncjbot.NodeState;
 
 /**
- * <p>A public-safe wrapper for {@link com.github.uberroot.ncjbot.ProcessorNode}.</p>
+ * <p>A public-safe wrapper for {@link com.github.uberroot.ncjbot.LocalNode}.</p>
  * 
  * @author Carter Waxman
  *
  */
-public final class ProcessorNode {
+public final class LocalNode {
 	/**
-	 * <p>The actual ProcessorNode.</p>
+	 * <p>The actual LocalNode.</p>
 	 */
-	private com.github.uberroot.ncjbot.ProcessorNode node;
+	private com.github.uberroot.ncjbot.LocalNode node;
 	
 	/**
-	 * <p>Initializes this public-safe ProcessorNode with an actual ProcessorNode.</p>
+	 * <p>Initializes this public-safe LocalNode with an actual LocalNode.</p>
 	 * 
-	 * @param node The actual ProcessorNode.
+	 * @param node The actual LocalNode.
 	 */
-	public ProcessorNode(com.github.uberroot.ncjbot.ProcessorNode node){
+	public LocalNode(com.github.uberroot.ncjbot.LocalNode node){
 		this.node = node;
 	}
 	
@@ -43,12 +43,12 @@ public final class ProcessorNode {
 	}
 	
 	/**
-	 * <p>Retrieves the running NetworkManager for this node.</p>
+	 * <p>Retrieves the running OverlayManager for this node.</p>
 	 * 
-	 * @return The running NetworkManager for this node.
+	 * @return The running OverlayManager for this node.
 	 */
-	public NetworkManager getNetworkManager(){
-		return node.getNetworkManager().getSafeObject();
+	public OverlayManager getOverlayManager(){
+		return node.getOverlayManager().getSafeObject();
 	}
 	
 	/**

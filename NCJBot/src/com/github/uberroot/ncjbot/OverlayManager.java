@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  * <br>
  * 
  * <b>NOTE: THIS NEXT SECTION HAS NOT YET BEEN IMPLEMENTED / MAY NOT BE IMPLEMENTED AS DESCRIBED</b>
- * <p>The NetworkManager allows for two modes of operation: "Full" and "Gossip".</p>
+ * <p>The OverlayManager allows for two modes of operation: "Full" and "Gossip".</p>
  * 
  * <p>In full mode, this node will establish its presence with ALL other nodes. All network change messages will be broadcast
  * to the entire network. Each node running under full mode that receives a change message will either repeat the message to
@@ -56,11 +56,11 @@ import java.util.concurrent.TimeUnit;
  */
 //TODO: This should be a singleton class
 //TODO: There should be a method for internal removal of nodes
-public final class NetworkManager implements Runnable, UnsafeObject<com.github.uberroot.ncjbot.api.NetworkManager>, RemoteNode.EventListener{
+public final class OverlayManager implements Runnable, UnsafeObject<com.github.uberroot.ncjbot.api.OverlayManager>, RemoteNode.EventListener{
 	/**
-	 * <p>The running ProcessorNode instance.</p>
+	 * <p>The running LocalNode instance.</p>
 	 */
-	private ProcessorNode node;
+	private LocalNode node;
 	
 	/**
 	 * <p>The list of all nodes known to be active on the network.</p>
@@ -74,14 +74,14 @@ public final class NetworkManager implements Runnable, UnsafeObject<com.github.u
 	
 	
 	/**
-	 * <p>Initializes the NetworkManager with the given seed nodes. Each of the seed nodes will be contacted and queried for a
+	 * <p>Initializes the OverlayManager with the given seed nodes. Each of the seed nodes will be contacted and queried for a
 	 * list of known nodes. The results of the queries will be combined into the active node list, including those
 	 * seeds that responded.</p>
 	 * 
-	 * @param node The running ProcessorNode instance.
+	 * @param node The running LocalNode instance.
 	 * @param seedNodes The initial list of nodes to query. These should be considered the entry points for the network.
 	 */
-	public NetworkManager(ProcessorNode node, ArrayList<RemoteNode> seedNodes){
+	public OverlayManager(LocalNode node, ArrayList<RemoteNode> seedNodes){
 		this.node = node;
 		activeNodes = new ArrayList<RemoteNode>();
 		
@@ -175,13 +175,13 @@ public final class NetworkManager implements Runnable, UnsafeObject<com.github.u
 			catch (NodeStateException e) {
 				switch(e.getState()){
 					case SHUTTING_DOWN:{
-						//TODO: This isn't a failure, but should this be announced via ProcessorNode?
+						//TODO: This isn't a failure, but should this be announced via LocalNode?
 						activeNodes.remove(i--);
 						break;
 					}
 					case RUNNING:
 					case UNKNOWN:{
-						//TODO: This isn't a failure, but should this be announced via ProcessorNode?
+						//TODO: This isn't a failure, but should this be announced via LocalNode?
 						//System.out.println("Unknown node state: " + String.valueOf(buffer).trim());
 						break;
 					}
@@ -280,8 +280,8 @@ public final class NetworkManager implements Runnable, UnsafeObject<com.github.u
 	}
 
 	@Override
-	public com.github.uberroot.ncjbot.api.NetworkManager getSafeObject() {
-		return new com.github.uberroot.ncjbot.api.NetworkManager(this);
+	public com.github.uberroot.ncjbot.api.OverlayManager getSafeObject() {
+		return new com.github.uberroot.ncjbot.api.OverlayManager(this);
 	}
 
 	@Override
@@ -308,7 +308,7 @@ public final class NetworkManager implements Runnable, UnsafeObject<com.github.u
 	}
 	
 	/**
-	 * <p>Stops the NetworkManager from beaconing other nodes.</p>
+	 * <p>Stops the OverlayManager from beaconing other nodes.</p>
 	 */
 	public void stop(){
 		future.cancel(false);

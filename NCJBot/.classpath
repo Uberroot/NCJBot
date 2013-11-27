@@ -4,11 +4,9 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
 	<classpathentry kind="lib" path="GPGPU/jcublas-0.5.0.jar"/>
 	<classpathentry kind="lib" path="GPGPU/jcuda-0.5.0.jar"/>
-	<classpathentry kind="lib" path="GPGPU/jcudatest.jar"/>
 	<classpathentry kind="lib" path="GPGPU/jcufft-0.5.0.jar"/>
 	<classpathentry kind="lib" path="GPGPU/jcurand-0.5.0.jar"/>
-	<classpathentry kind="lib" path="GPGPU/jcusparse-0.5.0.jar"/><classpathentry
-		kind="lib" path="GPGPU/JOCL-0.1.7.jar">
-</classpathentry>
+	<classpathentry kind="lib" path="GPGPU/jcusparse-0.5.0.jar"/>
+	<classpathentry kind="lib" path="GPGPU/JOCL-0.1.7.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

@@ -8,24 +8,23 @@ import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
-import com.github.uberroot.ncjbot.api.ProcessorJob;
-import com.github.uberroot.ncjbot.api.ProcessorJobEnvironment;
-
+import com.github.uberroot.ncjbot.api.LocalJob;
+import com.github.uberroot.ncjbot.api.JobEnvironment;
 
 /**
- * <p>This is the main portion of the program. It is responsible for connecting to the network,
+ * <p>This is the core of the NCJBot. It is responsible for connecting to the network,
  * managing the various supporting threads, and shutting down the node / gracefully disconnecting from the network.</p>
  * 
  * <p>Additionally, this class is responsible for starting, monitoring, and signaling jobs running on this node. 
- * For more on the loading and running of individual jobs, see {@link ProcessorJobEnvironment}.</p>
+ * For more on the loading and running of individual jobs, see {@link JobEnvironment}.</p>
  * 
  * <p>The supporting classes use this class as a proxy for all communication, retrieving the instances of each other
  * from this class.</p>
  * 
  * @author Carter Waxman
  */
-//TODO: Should the ProcessorJob management functionality be in its own class?
-public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncjbot.api.ProcessorNode>{
+//TODO: Should the LocalJob management functionality be in its own class?
+public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.api.LocalNode>{
 	/**
 	 * <p>Used to ensure the main method cannot be called more than once.</p>
 	 */
@@ -38,9 +37,9 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	private NodeState state;
 	
 	/**
-	 * <p>The NetworkManager for this node.</p>
+	 * <p>The OverlayManager for this node.</p>
 	 */
-	private NetworkManager netMgr;
+	private OverlayManager netMgr;
 	
 	/**
 	 * <p>The port on which to listen for new connections.</p>
@@ -51,7 +50,7 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	/**
 	 * <p>A Hashtable of all running jobs, keyed by thread id.</p>
 	 */
-	private Hashtable<Long, ProcessorJob> jobs = new Hashtable<Long, ProcessorJob>();
+	private Hashtable<Long, LocalJob> jobs = new Hashtable<Long, LocalJob>();
 	
 	/**
 	 * <p>The Watchdog for monitoring remote nodes running locally initiated jobs.</p>
@@ -69,17 +68,17 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	private ScheduledThreadPoolExecutor executor;
 	
 	/**
-	 * <p>Entry point for the program. This loads the sole ProcessorNode instance.</p>
+	 * <p>Entry point for the program. This loads the sole LocalNode instance.</p>
 	 * 
-	 * @see ProcessorNode#ProcessorNode()
+	 * @see LocalNode#LocalNode()
 	 * @param args Command line arguments. This is ignored.
 	 * @throws IOException
 	 */
 	public static void main(String args[]) throws IOException{
-		if(mutex)	//Can't let anything call this method (especially a ProcessorJob).
+		if(mutex)	//Can't let anything call this method (especially a LocalJob).
 			return;
 		mutex = true;
-		new ProcessorNode();
+		new LocalNode();
 	}
 	
 	/**
@@ -88,7 +87,7 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	 * 
 	 * @throws IOException
 	 */
-	private ProcessorNode() throws IOException{
+	private LocalNode() throws IOException{
 		//TODO: This setup will be replaced with a configuration file
 		
 		//Seed nodes. This will be replaced with a configuration file
@@ -116,7 +115,7 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 		System.out.println("done");
 		
 		//Run the network manager
-		netMgr = new NetworkManager(this, seedNodes);//TODO: The network should not be joined until the server is running
+		netMgr = new OverlayManager(this, seedNodes);//TODO: The network should not be joined until the server is running
 	
 		//Open socket and respond to requests
 		//TODO: This access pattern should change. The socket should be created outside of the thread that queries it.
@@ -247,26 +246,26 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	 * <p> Starts a new job on its own thread with the given parameters. </p>
 	 * 
 	 * @param classPath The path to the running directory for the job to be created. This is also the path to the class file for the job.
-	 * @param className The name of the ProcessorJob subclass to run.
+	 * @param className The name of the LocalJob subclass to run.
 	 * @param source The node that sent the job, or null if it was locally created.
-	 * @param remotePid The thread id of the remote job that sent the job, or null if it was locally created.
+	 * @param remoteTid The thread id of the remote job that sent the job, or null if it was locally created.
 	 * @param initData Initialization parameters for the job to be created.
 	 * @param cleanup Whether to delete the class files and directory after it finishes running.
 	 * @return The thread id of the new job, or -1 on failure.
 	 */
 	//TODO: This should throw an exception on failure
 	//TODO: classPath and className should be combined for readability
-	public long startJob(String classPath, String className, RemoteNode source, String remotePid, File initData, boolean cleanup){
-		ProcessorJobEnvironment jobThread = null;
+	public long startJob(String classPath, String className, RemoteNode source, String remoteTid, File initData, boolean cleanup){
+		JobEnvironment jobThread = null;
 		try {
-			jobThread = new ProcessorJobEnvironment(this, className, new File(classPath), source, remotePid, initData, watchdog, cleanup, new ProcessorJobEnvironment.ProcessorJobStateListener(){
+			jobThread = new JobEnvironment(this, className, new File(classPath), source, remoteTid, initData, watchdog, cleanup, new JobEnvironment.JobStateListener(){
 				@Override
-				public void jobLoaded(ProcessorJobEnvironment wrapper, ProcessorJob job) {
+				public void jobLoaded(JobEnvironment wrapper, LocalJob job) {
 					jobs.put(wrapper.getId(), job);
 				}
 
 				@Override
-				public void jobFailedToLoad(ProcessorJobEnvironment wrapper, Exception ex) {
+				public void jobFailedToLoad(JobEnvironment wrapper, Exception ex) {
 					ex.printStackTrace();
 				}
 				
@@ -283,17 +282,17 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	/**
 	 * <p>Delivers data from a remote job to a job running on this node.</p>
 	 * 
-	 * @param destPid The thread id of the destination job running on this node.
-	 * @param sourcePid The thread id of the source job for the data.
+	 * @param destTid The thread id of the destination job running on this node.
+	 * @param sourceTid The thread id of the source job for the data.
 	 * @param source The node from which the data originated
 	 * @param data The data to deliver.
 	 */
-	//TODO: sourcePID and source should be combined into a RemoteProcessorJob
+	//TODO: sourcePID and source should be combined into a RemoteJob
 	//TODO: File use should be replaced with an abstraction to a stream or to a byte buffer or array
-	public void sendData(String destPid, String sourcePid, RemoteNode source, File data){
-		ProcessorJob job = jobs.get(Long.valueOf(destPid));
+	public void sendData(String destTid, String sourceTid, RemoteNode source, File data){
+		LocalJob job = jobs.get(Long.valueOf(destTid));
 		if(job != null)
-			job.dataReceived(source, sourcePid, data);
+			job.dataReceived(source, sourceTid, data);
 	}
 	
 	/**
@@ -304,8 +303,8 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	public void announceFoundNode(RemoteNode rn){
 		Set<Long> keys = jobs.keySet();
 		for(Long key : keys){
-			ProcessorJob j = jobs.get(key);
-			if(j != null && j.getOwner().isAlive())
+			LocalJob j = jobs.get(key);
+			if(j != null && j.getEnvironment().isAlive())
 				j.nodeFound(rn);
 		}
 	}
@@ -321,18 +320,19 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 		System.out.println("Node Failure: " + rn.getIpAddress().getHostAddress() + ":" + rn.getListeningPort());
 		Set<Long> keys = jobs.keySet();
 		for(Long key : keys){
-			ProcessorJob j = jobs.get(key);
-			if(j != null && j.getOwner().isAlive())
+			LocalJob
+			j = jobs.get(key);
+			if(j != null && j.getEnvironment().isAlive())
 				j.nodeFailed(rn);
 		}
 	}
 	
 	/**
-	 * <p>Retrieves the running NetworkManager for this node.</p>
+	 * <p>Retrieves the running OverlayManager for this node.</p>
 	 * 
-	 * @return The running NetworkManager for this node.
+	 * @return The running OverlayManager for this node.
 	 */
-	public NetworkManager getNetworkManager(){
+	public OverlayManager getOverlayManager(){
 		return netMgr;
 	}
 	
@@ -350,12 +350,13 @@ public final class ProcessorNode implements UnsafeObject<com.github.uberroot.ncj
 	 * 
 	 * @return The ScheduledThreadPoolExecutor used for timed callbacks.
 	 */
+	//TODO: This will be replaced with a multiple thread pool design
 	public ScheduledThreadPoolExecutor getExecutor(){
 		return executor;
 	}
 
 	@Override
-	public com.github.uberroot.ncjbot.api.ProcessorNode getSafeObject() {
-		return new com.github.uberroot.ncjbot.api.ProcessorNode(this);
+	public com.github.uberroot.ncjbot.api.LocalNode getSafeObject() {
+		return new com.github.uberroot.ncjbot.api.LocalNode(this);
 	}
 }

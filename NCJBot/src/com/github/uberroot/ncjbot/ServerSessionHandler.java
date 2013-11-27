@@ -19,9 +19,9 @@ import java.util.Random;
 //TODO: This shouldn't be a Thread subclass as it exposes public methods through thread enumeration
 public final class ServerSessionHandler extends Thread{
 	/**
-	 * <p>The running ProcessorNode instance.</p>
+	 * <p>The running LocalNode instance.</p>
 	 */
-	private ProcessorNode node;
+	private LocalNode node;
 	
 	/**
 	 * <p>A simple counter for the handlers that spawn, allowing for identification of individual server sessions.</p>
@@ -36,10 +36,10 @@ public final class ServerSessionHandler extends Thread{
 	/**
 	 * <p>Instantiates a ServerSessionHandler with a socket to use for client communication.</p>
 	 * 
-	 * @param node The running ProcessorNode instance.
+	 * @param node The running LocalNode instance.
 	 * @param clientSock A socket for client communication.
 	 */
-	public ServerSessionHandler(ProcessorNode node, Socket clientSock){
+	public ServerSessionHandler(LocalNode node, Socket clientSock){
 		this.node = node;
 		this.clientSock = clientSock;
 		setName("Server Session Handler " + idcount++ + " (" + clientSock.getInetAddress() + ":" + clientSock.getPort() + ")");
@@ -90,7 +90,7 @@ public final class ServerSessionHandler extends Thread{
 			}
 			else if(String.valueOf(cBuffer).trim().equals("Who do you know?")){
 				try {
-					List<RemoteNode> nodes = node.getNetworkManager().getActiveNodes();
+					List<RemoteNode> nodes = node.getOverlayManager().getActiveNodes();
 					String toSend = "\n";
 					for(RemoteNode n : nodes)
 						toSend += n.getIpAddress().getHostAddress() + ":" + n.getListeningPort() + "\n";
@@ -209,10 +209,10 @@ public final class ServerSessionHandler extends Thread{
 					node.addDiscoveredNode(rn);
 					
 					//Get the destination processes id
-					String destPid = readLine(in).trim();
+					String destTid = readLine(in).trim();
 					
 					//Get the remote's process id
-					String sourcePid = readLine(in).trim();
+					String sourceTid = readLine(in).trim();
 					
 					//Make a place for the returned data
 					Random rand = new Random();
@@ -225,7 +225,7 @@ public final class ServerSessionHandler extends Thread{
 					long dataLen = Long.valueOf(readLine(in).trim());
 					
 					//Download the data
-					File dataFile = new File(dirLoc + System.currentTimeMillis() + "_" + destPid + "_" + sourcePid + "_" + rand.nextLong());
+					File dataFile = new File(dirLoc + System.currentTimeMillis() + "_" + destTid + "_" + sourceTid + "_" + rand.nextLong());
 					FileOutputStream fos = new FileOutputStream(dataFile);
 					byte fbuffer[] = new byte[4096];
 					int read = 0;
@@ -244,7 +244,7 @@ public final class ServerSessionHandler extends Thread{
 					fos.close();
 					
 					//Send the data to the process
-					node.sendData(destPid, sourcePid, rn, dataFile);
+					node.sendData(destTid, sourceTid, rn, dataFile);
 					
 					//Cleanup the file
 					dataFile.delete();

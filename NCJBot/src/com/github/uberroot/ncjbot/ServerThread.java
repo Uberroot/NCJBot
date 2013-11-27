@@ -12,13 +12,13 @@ import java.net.SocketException;
  *
  */
 //TODO: Look into using SocketChannel for non-blocking socket handling
-//TODO: It should not be possible to instantiate this from any class but ProcessorNode. (Security)
+//TODO: It should not be possible to instantiate this from any class but LocalNode. (Security)
 //TODO: This shouldn't be a Thread subclass as it exposes public methods through thread enumeration
 public final class ServerThread extends Thread{
 	/**
-	 * <p>The running ProcessorNode instance.</p>
+	 * <p>The running LocalNode instance.</p>
 	 */
-	private ProcessorNode node;
+	private LocalNode node;
 	
 	/**
 	 * <p>The port on which the server listens.</p>
@@ -39,11 +39,11 @@ public final class ServerThread extends Thread{
 	 * <p>Creates a ServerThread for handling incoming connections and automatically starts the 
 	 * listening on the port specified.</p>
 	 * 
-	 * @param node The running ProcessorNode instance.
+	 * @param node The running LocalNode instance.
 	 * @param port The port on which to listen.
 	 * @throws IOException
 	 */
-	public ServerThread(ProcessorNode node, int port) throws IOException{
+	public ServerThread(LocalNode node, int port) throws IOException{
 		this.node = node;
 		this.port = port;
 		setName("Server Connection Dispatcher - " + port);

@@ -19,12 +19,12 @@ import java.util.Set;
  *
  */
 //TODO: This shouldn't be a Thread subclass as it exposes public methods through thread enumeration
-//TODO: It should be possible for the Watchdog to listen for RemoteNodes being added and removed from the NetworkManager
+//TODO: It should be possible for the Watchdog to listen for RemoteNodes being added and removed from the OverlayManager
 public final class Watchdog extends Thread implements UnsafeObject<com.github.uberroot.ncjbot.api.Watchdog>{
 	/**
-	 * <p>The running ProcessorNode instance.</p>
+	 * <p>The running LocalNode instance.</p>
 	 */
-	private ProcessorNode node;
+	private LocalNode node;
 	
 	/**
 	 * <p>A table of the times remaining before a node should be beaconed, keyed by the node.</p>
@@ -54,9 +54,9 @@ public final class Watchdog extends Thread implements UnsafeObject<com.github.ub
 	/**
 	 * <p>Instantiates a new Watchdog.</p>
 	 * 
-	 * @param node The running ProcessorNode instance.
+	 * @param node The running LocalNode instance.
 	 */
-	public Watchdog(ProcessorNode node){
+	public Watchdog(LocalNode node){
 		this.node = node;
 		toNotify = new Hashtable<RemoteNode, Integer>();
 		tnRetCount = new Hashtable<RemoteNode, Integer>();

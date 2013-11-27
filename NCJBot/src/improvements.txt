@@ -1,7 +1,7 @@
 CHANGE: Complete redesign of communication protocol (binary instead of text-based)
 ADD: Remote (worker) exception reporting
 CHANGE: Move console commanding to its own class (and possibly its own thread).
-CHANGE: Modify NetworkManager operation to stagger broadcasts of network updates
+CHANGE: Modify OverlayManager operation to stagger broadcasts of network updates
 	-The entire initialization process needs to be re-examined
 CHANGE: sendJob() so that it does not require the owner thread id as a parameter
 CHANGE: Instead of downloading classes to files, hold them in memory, unless more memory is needed
@@ -26,8 +26,8 @@ ADD: (other access controls... needs to be researched)
 ADD: Resource allocation monitoring (to cleanup after failures, possibly implemented using security manager)
  - Java 7 might take care of much of this
 ADD: Node configuration via file
-ADD: GUI to segment commanding, status, and individual messages from ProcessorJobs
-CHANGE: Take control of stdin/stdout/stderr to prevent ProcessorJobs from accessing these streams directly
+ADD: GUI to segment commanding, status, and individual messages from LocalNodeJobs
+CHANGE: Take control of stdin/stdout/stderr to prevent LocalNodeJobs from accessing these streams directly
 CHANGE: methods to prevent spoofing
 ADD: Ability to support service providers
 	-Could allow jobs to request anonymous providers for various services
@@ -40,8 +40,8 @@ ADD: Encapsulation for files and streams to guarantee resource management
 ADD: Caching for data to be sent if data is pulled from hdd
 ADD: Code-Signing / whitelist for allowed classes (can be disabled)
 ADD: Interface for access to (approved) external programs
-ADD: Subthread tracking (Parent-child relationships between threads spawned by ProcessorJobs)
-CHANGE: Implement ProcessorNode status more completely
+ADD: Subthread tracking (Parent-child relationships between threads spawned by LocalNodeJobs)
+CHANGE: Implement LocalNode status more completely
 CHANGE: Use an alternative method for nodes to identify themselves
 CHANGE: Should persistent connections be used while jobs are running?
 	-aka TCP keepalives

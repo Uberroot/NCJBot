@@ -1,12 +1,12 @@
 package com.github.uberroot.ncjbot;
 import java.io.IOException;
-import com.github.uberroot.ncjbot.api.ProcessorJob;
+import com.github.uberroot.ncjbot.api.LocalJob;
 
 /**
- * <p>This class provides access to ProcessorJobs running on remote nodes.</p>
+ * <p>This class provides access to LocalJobs running on remote nodes.</p>
  * 
  * <b>THE FOLLOWING HAS NOT YET BEEN IMPLEMENTED</b>
- * <p>By default, a ProcessorJob will only be allowed to communicate with its direct parent and its direct children.
+ * <p>By default, a LocalJob will only be allowed to communicate with its direct parent and its direct children.
  * Additional communication allowances can be specified by the receiving jobs. A suggested model for providing communication
  * between peer jobs would be to first dispatch child jobs to the other nodes, send the full list of peer jobs to the children,
  * and have the children register the peers as jobs authorized for interaction.</p>
@@ -14,18 +14,17 @@ import com.github.uberroot.ncjbot.api.ProcessorJob;
  * @author Carter Waxman
  *
  */
-public final class RemoteProcessorJob {
+public final class RemoteJob {
 	/**
-	 * <p>The running ProcessorNode instance.</p>
+	 * <p>The running LocalNode instance.</p>
 	 */
-	private ProcessorNode node;
+	private LocalNode node;
 	
 	/**
 	 * <p>The remote node that is running the job.</p>
 	 */
 	//TODO: This may need to be mutable to implement replication-based failover.
-	//TODO: This will probably be renamed
-	private final RemoteNode source; //TODO: Make sure source data is immutable.
+	private final RemoteNode remoteNode; //TODO: Make sure source data is immutable.
 	
 	/**
 	 * <p>The thread id of the remote job.</p>
@@ -34,15 +33,15 @@ public final class RemoteProcessorJob {
 	private final String remoteTid; //TODO: Will this be affected by using a thread pool for jobs?
 	
 	/**
-	 * <p>Instantiates a new RemoteProcessorJob with the node running the job, as well as the thread id of the running job.</p>
+	 * <p>Instantiates a new RemoteJob with the node running the job, as well as the thread id of the running job.</p>
 	 * 
-	 * @param node The running ProcessorNode instance.
-	 * @param source The RemoteNode that is running the job.
+	 * @param node The running LocalNode instance.
+	 * @param remoteNode The RemoteNode that is running the job.
 	 * @param remoteTid The thread id of the remote job.
 	 */
-	public RemoteProcessorJob(ProcessorNode node, RemoteNode source, String remoteTid){
+	public RemoteJob(LocalNode node, RemoteNode remoteNode, String remoteTid){
 		this.node = node;
-		this.source = source;
+		this.remoteNode = remoteNode;
 		this.remoteTid = remoteTid;
 	}
 	
@@ -51,9 +50,8 @@ public final class RemoteProcessorJob {
 	 * 
 	 * @return The RemoteNode currently running the job.
 	 */
-	//TODO: This will probably be renamed
-	public RemoteNode getSource(){
-		return source;
+	public RemoteNode getRemoteNode(){
+		return remoteNode;
 	}
 	
 	/**
@@ -67,7 +65,7 @@ public final class RemoteProcessorJob {
 	
 	/**
 	 * <p>Sends a chunk of data to the remote job. Upon receipt, this should trigger a call to the
-	 * {@link ProcessorJob#dataReceived(RemoteNode, String, java.io.File)} method for the remote ProcessorJob class.</p>
+	 * {@link LocalJob#dataReceived(RemoteNode, String, java.io.File)} method for the remote LocalNode class.</p>
 	 * 
 	 * @param data The data to send.
 	 * 
@@ -76,11 +74,11 @@ public final class RemoteProcessorJob {
 	 */
 	//TODO: The type for data will likely become an abstraction, allowing direct use of files and memory cached resources.
 	public void sendData(byte data[]) throws IOException, NodeStateException{ //TODO: Enforce linkages between jobs and remote jobs to prevent spoofing
-		source.sendData(remoteTid, data);
+		remoteNode.sendData(remoteTid, data);
 	}
 	
 	@Override
 	public String toString(){
-		return source.toString() + "_" + remoteTid;
+		return remoteNode.toString() + "_" + remoteTid;
 	}
 }

@@ -61,9 +61,9 @@ public final class RemoteNode {
 	private Vector<EventListener> listeners;
 	
 	/**
-	 * <p>The running ProcessorNode instance.</p>
+	 * <p>The running LocalNode instance.</p>
 	 */
-	private ProcessorNode node;
+	private LocalNode node;
 	
 	/**
 	 * The port on which the node accepts new connections.
@@ -88,13 +88,13 @@ public final class RemoteNode {
 	
 	/**
 	 * Creates an instance of a RemoteNode with the host/port pair.
-	 * @param node The running ProcessorNode instance.
+	 * @param node The running LocalNode instance.
 	 * @param ip IPv4 address or hostname of the machine running the node.
 	 * @param port TCP Port on which the node listens.
 	 * @throws UnknownHostException
 	 */
 	//TODO: Hostname resolution doesn't seem to work every time.
-	public RemoteNode(ProcessorNode node, String ip, int port) throws UnknownHostException{
+	public RemoteNode(LocalNode node, String ip, int port) throws UnknownHostException{
 		this.node = node;
 		setIpAddress(ip);
 		setListeningPort(port);
@@ -285,7 +285,7 @@ public final class RemoteNode {
 	 * @throws NodeStateException 
 	 */
 	//TODO: Abstract the data storage and account for size and performance issues automatically
-	//TODO: This method should be merged with RemoteProcessorJob.sendData(byte[])
+	//TODO: This method should be merged with RemoteJob.sendData(byte[])
 	public synchronized void sendData(String destTid, byte[] data) throws IOException, NodeStateException{
 		Socket s = null;
 		try {
@@ -309,7 +309,7 @@ public final class RemoteNode {
 				
 				//Send the remote(parent) process id, local process id
 				s.getOutputStream().write((destTid + "\n").getBytes());
-				s.getOutputStream().write((Thread.currentThread().getId() + "\n").getBytes()); //TODO: This assumes that the thread calling this method is the one that runs the ProcessorJob
+				s.getOutputStream().write((Thread.currentThread().getId() + "\n").getBytes()); //TODO: This assumes that the thread calling this method is the one that runs the LocalJob
 				
 				//Send the result length and data
 				s.getOutputStream().write((data.length + "\n").getBytes());
@@ -345,7 +345,7 @@ public final class RemoteNode {
 	 * 
 	 * @param ownerTid The thread id of the job that will be the parent of the started job.
 	 * @param worker A file pointing to the class file to send.
-	 * @param params Initialization parameters for the new ProcessorJob.
+	 * @param params Initialization parameters for the new LocalJob.
 	 * @return The remote thread id of the new job.
 	 * 
 	 * @throws ConnectException
@@ -354,7 +354,7 @@ public final class RemoteNode {
 	 */
 	//TODO: Automatically derive ownerTid.
 	//TODO: Abstract param and worker storage and account for performance and space issues automatically.
-	//TODO: This should return a RemoteProcessorJob
+	//TODO: This should return a RemoteJob
 	//TODO: An additional parameter should be provided to allow the Watchdog functionality to be toggled
 	//TODO: Add job state tracking.
 	public synchronized long sendJob(long ownerTid, File worker, byte[] params) throws IOException, NodeStateException{

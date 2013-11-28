@@ -25,7 +25,6 @@ import java.util.Vector;
 //TODO: The method used for node identification should be updated, possibly using asymmetric cryptography.
 //TODO: Should InetSocketAddress be used?
 //TODO: Add ability to check for info about system a node runs on.
-//TODO: All methods should be synchronized (requires testing)
 public final class RemoteNode {
 	
 	/**
@@ -226,8 +225,6 @@ public final class RemoteNode {
 			
 			if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
 				setState(NodeState.RUNNING);
-				System.out.println("Node is active");
-				System.out.print("Retreiving node list...\t");
 				s.getOutputStream().write("Who do you know?".getBytes());
 				buffer = new char[1500];
 				in.read(buffer);
@@ -466,7 +463,7 @@ public final class RemoteNode {
 		} catch (IOException e) {
 			//The connection was interrupted for some reason...
 			nodeConnectionFailed();
-			System.out.println("Unable to determine node state");	
+			throw e;
 		}
 		finally{
 			//Close the socket

@@ -34,7 +34,12 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 * <p>The current state of this node.</p>
 	 */
 	//TODO: This needs to be implemented more completely
-	private NodeState state;
+	private NodeState state = NodeState.UNKNOWN;
+	
+	/**
+	 * <p>The ConfigManager for this node.</p>
+	 */
+	private ConfigManager configManager;
 	
 	/**
 	 * <p>The OverlayManager for this node.</p>
@@ -88,22 +93,9 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 * @throws IOException
 	 */
 	private LocalNode() throws IOException{
-		//TODO: This setup will be replaced with a configuration file
-		
-		//Seed nodes. This will be replaced with a configuration file
-		ArrayList<RemoteNode> seedNodes = new ArrayList<RemoteNode>();
-		
-		Scanner scan = new Scanner(System.in);
-		System.out.print("Enter seed host: ");
-		String ip = scan.nextLine().trim();
-		System.out.print("Enter seed port: ");
-		seedNodes.add(new RemoteNode(this, ip, scan.nextInt())); //TODO: This breaks when a bad hostname is provided
-		scan.nextLine();
-		
-		//Get params
-		System.out.print("Enter listening port: ");
-		listenPort = scan.nextInt();
-		scan.nextLine();
+		//Load the configuration
+		configManager = new ConfigManager(this, new File("config.Properties"));
+
 		
 		//Create the executor service
 		executor = new ScheduledThreadPoolExecutor(2); //TODO: This should be configurable.
@@ -114,25 +106,50 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		watchdog.start();
 		System.out.println("done");
 		
-		//Run the network manager
-		netMgr = new OverlayManager(this, seedNodes);//TODO: The network should not be joined until the server is running
-	
-		//Open socket and respond to requests
-		//TODO: This access pattern should change. The socket should be created outside of the thread that queries it.
-		servThread = null;
-		try{
-			servThread = new ServerThread(this, listenPort);
-			servThread.start();
-		} catch(IOException e){
-			System.err.println(e.getMessage());
+		//Load the seed nodes
+		ArrayList<RemoteNode> seedNodes = new ArrayList<RemoteNode>();
+		String seedStrings[] = configManager.getSetting("LocalNode", "seedNodes").split(",");
+		for(String s : seedStrings){
+			String seed[] = s.trim().split(":");
+			seedNodes.add(new RemoteNode(this, seed[0], Integer.valueOf(seed[1]))); //TODO: This breaks when a bad hostname is provided
 		}
 		
-		//Set the status to ready
-		state = NodeState.RUNNING;
+		//Setup the overlay manager
+		netMgr = new OverlayManager(this, seedNodes);//TODO: The network should not be joined until the server is running
+		
+		//Open socket and respond to requests
+		//TODO: This access pattern should change. The socket should be created outside of the thread that queries it.
+		listenPort = Integer.valueOf(configManager.getSetting("LocalNode", "minListenPort"));
+		int maxPort = Integer.valueOf(configManager.getSetting("LocalNode", "maxListenPort"));
+		int portIncrement = Integer.valueOf(configManager.getSetting("LocalNode", "listenPortIncrement"));
+		while(servThread == null && listenPort <= maxPort){
+			try{
+				servThread = new ServerThread(this, listenPort);
+				servThread.start();
+			} catch(IOException e){
+				servThread = null;
+				listenPort += portIncrement;
+				System.out.println(e.getMessage());
+			}
+		}
+		
+		//Join the network if ready
+		if(servThread != null){
+			//Set the status to ready
+			state = NodeState.RUNNING;
+			
+			//Join the network
+			netMgr.startBeacon();
+		}
+		else{
+			System.err.print("Unable to start server and join network. Please adjust your configuration.\n");
+			quit();
+		}
 		
 		//Handle console input
 		//TODO: This is a rudimentary console for testing. This functionality should be moved to its own class.
 		//TODO: Look into lanterna (https://code.google.com/p/lanterna/) for creating the console. This should allow switching between panels and I/O splitting without a GUI
+		Scanner scan = new Scanner(System.in);
 		System.out.println("Console initialized... What would you like to do?");
 		while(true){
 			System.out.print("> ");
@@ -204,7 +221,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		//TODO: Graceful network removal should occur, but may not be necessary for the current lazy communication model
 		if(servThread != null)
 			servThread.kill();
-		netMgr.stop();
+		netMgr.stopBeacon();
 		watchdog.kill();
 		executor.shutdown();
 		System.exit(0);

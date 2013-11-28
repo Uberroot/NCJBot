@@ -97,14 +97,17 @@ public final class OverlayManager implements Runnable, UnsafeObject<com.github.u
 			}
 			catch(ConnectException e){
 				//Unable to connect to seed node. Don't add it.
+				System.out.println("Failed");
 				continue;
 			} catch (IOException e) {
 				//Communication is not reliable. Ignore this node.
+				System.out.println("Failed");
 				continue;
 			} catch (NodeStateException e) {
 				switch(e.getState()){
 					case SHUTTING_DOWN:{
 						//Don't add it, it won't be useful
+						System.out.println("Failed");
 						break;
 					}
 					case RUNNING:
@@ -114,6 +117,8 @@ public final class OverlayManager implements Runnable, UnsafeObject<com.github.u
 						
 						//Register as the RemoteNode.EventListener
 						n.addEventListener(this);
+						
+						System.out.println("Partial Success");
 						break;
 					}
 				}
@@ -122,6 +127,7 @@ public final class OverlayManager implements Runnable, UnsafeObject<com.github.u
 			
 			//No exceptions, add the seed node
 			activeNodes.add(n);
+			System.out.println("Success");
 			
 			//Add the retrieved nodes
 			for(RemoteNode n1 : l)
@@ -140,9 +146,6 @@ public final class OverlayManager implements Runnable, UnsafeObject<com.github.u
 		//Are there nodes?
 		if(activeNodes.size() == 0)
 			System.out.println("No active nodes found. Starting as lone node.");
-		
-		//Register with the timer provider
-		future = node.getExecutor().scheduleAtFixedRate(this, 0, 60, TimeUnit.MINUTES);
 	}
 	
 	/**
@@ -308,9 +311,21 @@ public final class OverlayManager implements Runnable, UnsafeObject<com.github.u
 	}
 	
 	/**
+	 * <p>Starts the periodic beacon to other nodes.</p>
+	 */
+	public void startBeacon(){
+		//Register with the timer provider
+		if(future == null)
+			future = node.getExecutor().scheduleAtFixedRate(this, 0, 60, TimeUnit.MINUTES);
+		//TODO: This should throw an exception. Add exceptions for bad component states
+	}
+	
+	/**
 	 * <p>Stops the OverlayManager from beaconing other nodes.</p>
 	 */
-	public void stop(){
-		future.cancel(false);
+	public void stopBeacon(){
+		if(future != null)
+			future.cancel(false);
+		future = null;
 	}
 }

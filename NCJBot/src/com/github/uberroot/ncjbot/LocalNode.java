@@ -1,6 +1,8 @@
 package com.github.uberroot.ncjbot;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
@@ -79,11 +81,16 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 * @param args Command line arguments. This is ignored.
 	 * @throws IOException
 	 */
-	public static void main(String args[]) throws IOException{
+	public static void main(String args[]){
 		if(mutex)	//Can't let anything call this method (especially a LocalJob).
 			return;
 		mutex = true;
-		new LocalNode();
+		try {
+			new LocalNode();
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.exit(-1);
+		}
 	}
 	
 	/**
@@ -104,14 +111,20 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		System.out.print("Starting watchdog...");
 		watchdog = new Watchdog(this);
 		watchdog.start();
-		System.out.println("done");
+		System.out.println("Success");
 		
 		//Load the seed nodes
 		ArrayList<RemoteNode> seedNodes = new ArrayList<RemoteNode>();
 		String seedStrings[] = configManager.getSetting("LocalNode", "seedNodes").split(",");
 		for(String s : seedStrings){
 			String seed[] = s.trim().split(":");
-			seedNodes.add(new RemoteNode(this, seed[0], Integer.valueOf(seed[1]))); //TODO: This breaks when a bad hostname is provided
+			try{
+				seedNodes.add(new RemoteNode(this, seed[0], Integer.valueOf(seed[1])));
+			}
+			catch(UnknownHostException e){
+				//Ignore the seed
+				System.err.println("Bad seed hostname in configuration: " + s);
+			}
 		}
 		
 		//Setup the overlay manager
@@ -129,7 +142,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 			} catch(IOException e){
 				servThread = null;
 				listenPort += portIncrement;
-				System.out.println(e.getMessage());
+				System.err.println(e.getMessage());
 			}
 		}
 		

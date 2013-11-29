@@ -167,12 +167,12 @@ public final class OverlayManager implements Runnable, UnsafeObject<com.github.u
 			}
 			catch (ConnectException e) { //Could not connect
 				//If here, either host doesn't exist, or is not listening on the port
-				System.out.println("Unable to connect");
+				System.err.println("Unable to connect: " + n);
 				node.announceNodeFailure(activeNodes.remove(i--));
 			}
 			catch (IOException e) {
 				//If here, communication is not reliable
-				System.out.println("Unreliable");
+				System.err.println("Unreliable: " + n);
 				node.announceNodeFailure(activeNodes.remove(i--));
 			}
 			catch (NodeStateException e) {
@@ -185,7 +185,6 @@ public final class OverlayManager implements Runnable, UnsafeObject<com.github.u
 					case RUNNING:
 					case UNKNOWN:{
 						//TODO: This isn't a failure, but should this be announced via LocalNode?
-						//System.out.println("Unknown node state: " + String.valueOf(buffer).trim());
 						break;
 					}
 				}
@@ -307,7 +306,7 @@ public final class OverlayManager implements Runnable, UnsafeObject<com.github.u
 		// TODO A connection error could be indicative of a node changing IP / Port numbers. Should there be a grace period before removing? (Shouldn't matter until node ID's are implemented)
 		node.removeEventListener(this);
 		activeNodes.remove(node);
-		System.out.println("Removing unreliable node");
+		System.err.println("Removing unreliable node: " + node);
 	}
 	
 	/**

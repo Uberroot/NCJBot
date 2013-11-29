@@ -65,7 +65,6 @@ public final class ServerSessionHandler extends Thread{
 				for(int i = 0; i < 1500; i++)
 					cBuffer[i] = (char)buffer[i];
 			} catch (IOException e1) {}
-			//System.out.println("..." + String.valueOf(buffer).trim() + "...");
 			if(String.valueOf(cBuffer).trim().equals("Goodbye."))
 				break;
 			if(String.valueOf(cBuffer).trim().equals("Are you alive?")){
@@ -85,7 +84,7 @@ public final class ServerSessionHandler extends Thread{
 						}
 					}
 				} catch (IOException e) {
-					System.err.println("Unable to respond.");
+					System.err.println("Unable to respond");
 				}
 			}
 			else if(String.valueOf(cBuffer).trim().equals("Who do you know?")){

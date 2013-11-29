@@ -109,7 +109,7 @@ public final class ServerThread extends Thread{
 				} catch (IOException e1) {
 					//This is bad...
 					e1.printStackTrace();
-					System.exit(-1);
+					node.quit();
 				}
 				
 			}

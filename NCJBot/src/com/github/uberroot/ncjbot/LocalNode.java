@@ -1,6 +1,5 @@
 package com.github.uberroot.ncjbot;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -103,7 +102,6 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		//Load the configuration
 		configManager = new ConfigManager(this, new File("config.Properties"));
 
-		
 		//Create the executor service
 		executor = new ScheduledThreadPoolExecutor(2); //TODO: This should be configurable.
 		
@@ -373,6 +371,15 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 */
 	public Watchdog getWatchdog(){
 		return watchdog;
+	}
+	
+	/**
+	 * <p>Gets the current configuration manager.</p>
+	 * 
+	 * @return the current configuration manager.
+	 */
+	public ConfigManager getConfigManager(){
+		return configManager;
 	}
 	
 	/**

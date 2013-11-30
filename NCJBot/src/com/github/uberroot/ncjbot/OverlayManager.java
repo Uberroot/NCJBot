@@ -210,14 +210,18 @@ public final class OverlayManager implements Runnable, UnsafeObject<com.github.u
 	 * @param rn the node to add
 	 * @return True if the node was an addition to the list, false if the node was already known.
 	 */
-	public synchronized boolean addDiscoveredNode(RemoteNode rn){
-		if(!activeNodes.contains(rn)){
-			activeNodes.add(rn);
-			rn.addEventListener(this);
-			node.announceFoundNode(rn);
-			return true;
+	public boolean addDiscoveredNode(RemoteNode rn){
+		synchronized(rn){
+			synchronized(activeNodes){
+				if(!activeNodes.contains(rn)){
+					activeNodes.add(rn);
+					rn.addEventListener(this);
+					node.announceFoundNode(rn);
+					return true;
+				}
+				return false;
+			}
 		}
-		return false;
 	}
 	
 	/**

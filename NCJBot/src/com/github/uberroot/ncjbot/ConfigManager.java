@@ -8,11 +8,22 @@ import java.io.IOException;
 import java.util.Hashtable;
 import java.util.Properties;
 import java.util.Set;
+import java.util.Vector;
+
+import com.github.uberroot.ncjbot.RemoteNode.EventListener;
 
 /**
  * <p>This class is responsible for loading, maintaining, and retrieving configuration data.
  * Configuration data is loaded from a Properties file and stored with keys in the format "&lt;section&gt;.&lt;setting&gt;".
  * For example, the entry "OverlayManager.threadPool = 1" would set the key "threadPool" in section "OverlayManager" to a value of "1".</p>
+ * 
+ * <p>Because this class may handle configurations for several components, it may be accessed by several threads simultaneously. In order to
+ * achieve consistency and stability with configurations, all operations on this object should occur atomically. Example:
+ * <pre>synchronized(configManager){
+ * 	if(configManager.getSetting("some", "setting") == "")
+ * 		configManager.setSetting("some", "setting", "value");
+ * 	configManager.saveConfig(file);
+ * }</pre></p>
  * 
  * @author Carter Waxman
  *
@@ -29,6 +40,38 @@ public final class ConfigManager {
 	private Hashtable<String, Hashtable<String, String>> configuration;
 	
 	/**
+	 * <p>A list of listeners that receive all updates.</p>
+	 */
+	private Vector<EventListener> fullListeners;
+	
+	/**
+	 * <p>A mapping of sections to sectional listeners.</p>
+	 */
+	private Hashtable<String, Vector<EventListener>> sectionListeners;
+	
+	/**
+	 * <p>A mapping of sections to individual key listeners.</p>
+	 */
+	private Hashtable<String, Hashtable<String, Vector<EventListener>>> keyListeners;
+	
+	/**
+	 * An interface that listens for configuration changes.
+	 * 
+	 * @author Carter Waxman
+	 *
+	 */
+	public interface EventListener extends java.util.EventListener{
+		/**
+		 * <p>Called when a monitored setting is changed.</p>
+		 * 
+		 * @param section The setting section.
+		 * @param key The key within the section.
+		 * @param value The new value for the setting.
+		 */
+		public void settingChanged(String section, String key, String value);
+	}
+	
+	/**
 	 * <p>Creates a ConfigManager and loads the configuration for the file specified.</p>
 	 * 
 	 * @param node The running LocalNode instance.
@@ -40,6 +83,9 @@ public final class ConfigManager {
 		//Basic setup
 		this.node = node;
 		this.configuration = new Hashtable<String, Hashtable<String, String>>();
+		this.fullListeners = new Vector<EventListener>();
+		this.sectionListeners = new Hashtable<String, Vector<EventListener>>();
+		this.keyListeners = new Hashtable<String, Hashtable<String, Vector<EventListener>>>();
 		
 		//Load the configuration file into the manager
 		loadConfig(configFile);
@@ -86,6 +132,13 @@ public final class ConfigManager {
 		}
 	}
 	
+	/**
+	 * <p>Saves the running configuration to the given file.</p>
+	 * 
+	 * @param configFile The file that will hold the configuration data.
+	 * @throws FileNotFoundException
+	 * @throws IOException
+	 */
 	public synchronized void saveConfig(File configFile) throws FileNotFoundException, IOException{
 		//Create a Properties class to store the data
 		Properties props = new Properties();
@@ -146,8 +199,131 @@ public final class ConfigManager {
 			configuration.put(section, sectionTable);
 		}
 		
+		//Get the old value if it exists
+		String old = sectionTable.get(key);
+		
 		//Set the setting
 		sectionTable.put(key, value);
+		
+		if(!value.equals(old)){
+			//Notify full listeners
+			Vector<EventListener> temp = new Vector<EventListener>(fullListeners);
+			for(EventListener e : temp)
+				e.settingChanged(section, key, value);
+			
+			//Notify section listeners
+			temp = sectionListeners.get(section);
+			if(temp != null){
+				temp = new Vector<EventListener>(temp);
+				for(EventListener e : temp)
+					e.settingChanged(section, key, value);
+			}
+			
+			//Notify key listeners
+			Hashtable<String, Vector<EventListener>> tempTable = keyListeners.get(section);
+			if(tempTable != null){
+				temp = tempTable.get(key);
+				if(temp != null){
+					temp = new Vector<EventListener>(temp);
+					for(EventListener e : temp)
+						e.settingChanged(section, key, value);
+				}
+			}
+		}
 	}
-
+	
+	/**
+	 * <p>Adds a listener to receive all configuration updates.</p>
+	 * 
+	 * @param listener The listener that will receive configuration updates.
+	 */
+	public synchronized void addListener(EventListener listener){
+		fullListeners.add(listener);
+	}
+	
+	/**
+	 * <p>Removes a listener set to receive all configuration updates.</p>
+	 * 
+	 * @param listener The listener to remove.
+	 */
+	public synchronized void removeListener(EventListener listener){
+		fullListeners.remove(listener);
+	}
+	
+	/**
+	 * <p>Adds a listener to receive all configuration updates on a section.</p>
+	 * 
+	 * @param listener The listener that will receive configuration updates.
+	 * @param section The section on which to listen.
+	 */
+	public synchronized void addSectionListener(String section, EventListener listener){
+		Vector<EventListener> v = sectionListeners.get(section);
+		if(v == null){
+			v = new Vector<EventListener>();
+			sectionListeners.put(section, v);
+		}
+		v.add(listener);
+	}
+	
+	/**
+	 * <p>Removes a listener set to receive configuration updates from a section.</p>
+	 * 
+	 * @param section The monitored section.
+	 * @param listener The listener to remove.
+	 */
+	public synchronized void removeSectionListener(String section, EventListener listener){
+		Vector<EventListener> v = sectionListeners.get(section);
+		if(v == null)
+			return;
+		v.remove(listener);
+		if(v.size() == 0)
+			sectionListeners.remove(section);
+	}
+	
+	/**
+	 * <p>Adds a listener set to receive configuration updates from a key in a section.</p>
+	 * 
+	 * @param section The monitored section.
+	 * @param listener The listener to remove.
+	 */
+	public synchronized void addKeyListener(String section, String key, EventListener listener){
+		Hashtable<String, Vector<EventListener>> h = keyListeners.get(section);
+		if(h == null){
+			h = new Hashtable<String, Vector<EventListener>>();
+			keyListeners.put(section, h);
+		}
+		
+		Vector<EventListener> v = h.get(key);
+		if(v == null){
+			v = new Vector<EventListener>();
+			h.put(key, v);
+		}
+		v.add(listener);
+	}
+	
+	/**
+	 * <p>Removes a listener set to receive configuration updates from a key in a section.</p>
+	 * 
+	 * @param section The monitored section.
+	 * @param listener The listener to remove.
+	 */
+	public synchronized void removeKeyListener(String section, String key, EventListener listener){
+		Hashtable<String, Vector<EventListener>> h = keyListeners.get(section);
+		if(h == null){
+			h = new Hashtable<String, Vector<EventListener>>();
+			keyListeners.put(section, h);
+		}
+		
+		Vector<EventListener> v = h.get(key);
+		if(v == null){
+			v = new Vector<EventListener>();
+			h.put(key, v);
+		}
+		v.remove(listener);
+		
+		if(v.size() == 0)
+			h.remove(key);
+		if(h.size() == 0)
+			keyListeners.remove(section);
+	}
 }

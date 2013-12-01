@@ -17,6 +17,7 @@ import java.util.Random;
 //TODO: Implement SO_TIMEOUTs and SO_KEEPALIVEs
 //TODO: The multithreaded approach may be replaced with socket channels
 //TODO: This shouldn't be a Thread subclass as it exposes public methods through thread enumeration
+//TODO: There should be a hook for each protocol method
 public final class ServerSessionHandler extends Thread{
 	/**
 	 * <p>The running LocalNode instance.</p>

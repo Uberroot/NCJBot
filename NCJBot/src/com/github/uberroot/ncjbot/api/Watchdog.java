@@ -14,26 +14,15 @@ public final class Watchdog {
 	/**
 	 * <p>The actual Watchdog.</p>
 	 */
-	private com.github.uberroot.ncjbot.Watchdog watchdog;
+	private com.github.uberroot.ncjbot.modules.Watchdog watchdog;
 	
 	/**
 	 * <p>Initializes this public-safe Watchdog with an actual Watchdog.</p>
 	 * 
 	 * @param node The actual Watchdog.
 	 */
-	public Watchdog(com.github.uberroot.ncjbot.Watchdog watchdog){
+	public Watchdog(com.github.uberroot.ncjbot.modules.Watchdog watchdog){
 		this.watchdog = watchdog;
-	}
-	
-	/**
-	 * <p>Registers a beacon to send to a RemoteNode. The first registration will add the beacon,
-	 * with all subsequent registrations incrementing the beacon retain count. A beacon will continue to
-	 * operate until its retain count reaches 0.</p>
-	 * 
-	 * @param rn The node to beacon.
-	 */
-	public void registerBeacon(RemoteNode rn){
-		watchdog.registerBeacon(rn);
 	}
 	
 	/**
@@ -45,16 +34,6 @@ public final class Watchdog {
 	 */
 	public void registerReceiver(RemoteNode rn){
 		watchdog.registerReceiver(rn);
-	}
-	
-	/**
-	 * <p>Decreases the retain count for beaconing a particular node. A beacon will continue to
-	 * operate until its retain count reaches 0. </p>
-	 * 
-	 * @param rn The node being beaconed.
-	 */
-	public void releaseBeacon(RemoteNode rn){
-		watchdog.releaseBeacon(rn);
 	}
 	
 	/**

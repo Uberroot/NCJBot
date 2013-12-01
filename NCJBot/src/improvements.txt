@@ -77,6 +77,10 @@ CHANGE: Rings of security could be implemented using inherited interfaces with e
 ADD: Ability to move dispatchers between nodes on command and on failure
 ADD: Modules for each function
  - With hotswapping
+ - Are dynamic interfaces possible?
+ - System hooks
+ - Inter-Module hooks
+ - Chained hooks + out of order hooks
 CHANGE: Each component could have its own dedicated thread pool, as well as access to a shared thread pool when needed
 
 Configurables to add:

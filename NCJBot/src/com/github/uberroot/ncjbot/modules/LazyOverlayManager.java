@@ -290,9 +290,7 @@ public final class LazyOverlayManager extends AbstractModule implements OverlayM
 	}
 	
 	@Override
-	public void link() {
-		// TODO Auto-generated method stub
-		
+	public synchronized void link() {
 	}
 	
 	@Override
@@ -350,17 +348,17 @@ public final class LazyOverlayManager extends AbstractModule implements OverlayM
 	}
 
 	@Override
-	public void pause() {
+	public synchronized void pause() {
 		stop();
 	}
 
 	@Override
-	public void resume() {
+	public synchronized void resume() {
 		run();
 	}
 
 	@Override
-	public void stop() {
+	public synchronized void stop() {
 		synchronized(future){
 			if(future != null)
 				future.cancel(false);
@@ -369,8 +367,6 @@ public final class LazyOverlayManager extends AbstractModule implements OverlayM
 	}
 
 	@Override
-	public void unlink() {
-		// TODO Auto-generated method stub
-		
+	public synchronized void unlink() {
 	}
 }

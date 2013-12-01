@@ -1,12 +1,19 @@
-package com.github.uberroot.ncjbot;
+package com.github.uberroot.ncjbot.modules;
 import java.io.IOException;
 import java.util.Hashtable;
 import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
+import com.github.uberroot.ncjbot.LocalNode;
+import com.github.uberroot.ncjbot.NodeStateException;
+import com.github.uberroot.ncjbot.RemoteNode;
+import com.github.uberroot.ncjbot.UnsafeObject;
 
 /**
  * 
  * <p>This class performs a watchdog functionality to allow the detection of node failure, especially those nodes that are 
- * running jobs. When this node starts a node on another node, it should register the remote node with its watchdog,
+ * running jobs. When this node starts a job on another node, it should register the remote node with its watchdog,
  * after which a beacon must be received from the remote node within every 20 seconds. Similarly, the remote node should
  * also register with the watchdog so that it will automatically send a beacon every 10 seconds. In the event of a beacon
  * lapse, the node is assumed to be dead, and all jobs running on this node will be alerted to the failure so that they
@@ -20,11 +27,11 @@ import java.util.Set;
  */
 //TODO: This shouldn't be a Thread subclass as it exposes public methods through thread enumeration
 //TODO: It should be possible for the Watchdog to listen for RemoteNodes being added and removed from the OverlayManager
-public final class Watchdog extends Thread implements UnsafeObject<com.github.uberroot.ncjbot.api.Watchdog>{
+public final class BeaconingWatchdog extends AbstractModule implements Watchdog{
 	/**
-	 * <p>The running LocalNode instance.</p>
+	 * <p>The ScheduledFuture for handling the beacon timer</p>
 	 */
-	private LocalNode node;
+	private ScheduledFuture<?> future;
 	
 	/**
 	 * <p>A table of the times remaining before a node should be beaconed, keyed by the node.</p>
@@ -56,38 +63,12 @@ public final class Watchdog extends Thread implements UnsafeObject<com.github.ub
 	 * 
 	 * @param node The running LocalNode instance.
 	 */
-	public Watchdog(LocalNode node){
-		this.node = node;
+	public BeaconingWatchdog(LocalNode node){
+		super(node);
 		toNotify = new Hashtable<RemoteNode, Integer>();
 		tnRetCount = new Hashtable<RemoteNode, Integer>();
 		expecting =  new Hashtable<RemoteNode, Integer>();
 		exRetCount =  new Hashtable<RemoteNode, Integer>();
-		this.setName("Watchdog");
-	}
-	
-	/**
-	 * <p>Runs the Watchdog, updating and running the necessary checks every second.</p>
-	 */
-	@Override
-	public void run(){
-		running = true;
-		while(running){
-			try {
-				Thread.sleep(1000);
-				tick();
-			} catch (InterruptedException e) {
-				break;
-			}
-		}
-		System.out.println("The watchdog has stopped");
-	}
-	
-	/**
-	 * <p>Stops the Watchdog.</p>
-	 */
-	public void kill(){
-		running = false;
-		interrupt();
 	}
 	
 	/**
@@ -216,6 +197,7 @@ public final class Watchdog extends Thread implements UnsafeObject<com.github.ub
 	 * 
 	 * @param source The source of the beacon.
 	 */
+	//TODO: This should be a system hook
 	public synchronized void beaconed(RemoteNode source){
 		Set<RemoteNode> keys = expecting.keySet();
 		for(RemoteNode key : keys){
@@ -225,9 +207,50 @@ public final class Watchdog extends Thread implements UnsafeObject<com.github.ub
 			}
 		}
 	}
+	
+	/**
+	 * <p>Runs the Watchdog, updating and running the necessary checks every second.</p>
+	 */
+	@Override
+	public synchronized void run(){
+		if(future == null)
+			future = executor.scheduleAtFixedRate(new Runnable(){
+	
+				@Override
+				public void run() {
+					tick();
+				}}, 0, 1, TimeUnit.SECONDS);
+	}
 
 	@Override
 	public com.github.uberroot.ncjbot.api.Watchdog getSafeObject() {
 		return new com.github.uberroot.ncjbot.api.Watchdog(this);
+	}
+
+	@Override
+	public synchronized void link() {
+	}
+
+	@Override
+	public synchronized void pause() {
+		stop();
+	}
+
+	@Override
+	public synchronized void resume() {
+		run();
+	}
+
+	@Override
+	public synchronized void stop() {
+		synchronized(future){
+			if(future != null)
+				future.cancel(false);
+			future = null;
+		}
+	}
+
+	@Override
+	public synchronized void unlink() {		
 	}
 }

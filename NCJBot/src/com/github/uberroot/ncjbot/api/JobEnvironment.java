@@ -36,7 +36,7 @@ public final class JobEnvironment extends Thread {
 	/**
 	 * <p>The Watchdog for the current node. Used to create and destroy beacons when running the LocalJob.</p>
 	 */
-	private final com.github.uberroot.ncjbot.Watchdog watchdog;
+	private final com.github.uberroot.ncjbot.modules.Watchdog watchdog;
 	
 	/**
 	 * <p>Whether the class and associated files should automatically be cleaned after termination. This will only be true
@@ -114,7 +114,7 @@ public final class JobEnvironment extends Thread {
 	//TODO: a second constructor could be used (one without the source parameters), which could be used to infer that the job is local
 	//TODO: source and remotePID could be combined into a RemoteJob
 	//TODO: This should only be callable by LocalNode
-	public JobEnvironment(com.github.uberroot.ncjbot.LocalNode node, String className, File classPath, RemoteNode parent, String remoteTid, File initData, com.github.uberroot.ncjbot.Watchdog watchdog, boolean cleanup, JobStateListener listener) throws IOException, ClassNotFoundException{
+	public JobEnvironment(com.github.uberroot.ncjbot.LocalNode node, String className, File classPath, RemoteNode parent, String remoteTid, File initData, com.github.uberroot.ncjbot.modules.Watchdog watchdog, boolean cleanup, JobStateListener listener) throws IOException, ClassNotFoundException{
 		this.node = node;
 		
 		URL[] u = new URL[1];

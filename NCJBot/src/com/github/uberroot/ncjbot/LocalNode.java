@@ -13,6 +13,7 @@ import com.github.uberroot.ncjbot.api.LocalJob;
 import com.github.uberroot.ncjbot.api.JobEnvironment;
 import com.github.uberroot.ncjbot.modules.AbstractModule;
 import com.github.uberroot.ncjbot.modules.OverlayManager;
+import com.github.uberroot.ncjbot.modules.Watchdog;
 
 /**
  * <p>This is the core of the NCJBot. It is responsible for connecting to the network,
@@ -68,7 +69,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	/**
 	 * <p>The Watchdog for monitoring remote nodes running locally initiated jobs.</p>
 	 */
-	private Watchdog watchdog;
+	private AbstractModule watchdog;
 	
 	/**
 	 * <p>The thread that handles incoming socket communication.</p>
@@ -127,13 +128,19 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		modules = new ArrayList<AbstractModule>();
 		String mods[] = configManager.getSetting("LocalNode", "modules").split(",");
 		for(String s : mods){
-			System.out.println("Loading Module " + s + "...");
-			Class<? extends AbstractModule> c = (Class<? extends AbstractModule>) ClassLoader.getSystemClassLoader().loadClass(s).asSubclass(AbstractModule.class);
+			System.out.println("Loading Module " + s.trim() + "...");
+			Class<? extends AbstractModule> c = (Class<? extends AbstractModule>) ClassLoader.getSystemClassLoader().loadClass(s.trim()).asSubclass(AbstractModule.class);
 			if(OverlayManager.class.isAssignableFrom(c)){
 				if(netMgr == null)
 					netMgr = c.getConstructor(LocalNode.class).newInstance(this);
 				else
 					throw new NCJBotException("Duplicate OverlayManager Modules Configured"); //TODO: This should be it's own exception subclass
+			}
+			else if(Watchdog.class.isAssignableFrom(c)){
+				if(watchdog == null)
+					watchdog = c.getConstructor(LocalNode.class).newInstance(this);
+				else
+					throw new NCJBotException("Duplicate Watchdog Modules Configured"); //TODO: This should be it's own exception subclass
 			}
 			else
 				modules.add(c.getConstructor(LocalNode.class).newInstance(this));
@@ -142,16 +149,15 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		//Make sure the vital modules have been loaded
 		if(netMgr == null)
 			throw new NCJBotException("An OverlayManager has not been loaded"); //TODO: This should be it's own exception subclass
+		if(watchdog == null)
+			throw new NCJBotException("A Watchdog has not been loaded"); //TODO: This should be it's own exception subclass
 		
 		//Allow the modules to link
 		for(AbstractModule m : modules)
 			m.link();
 		
 		//Start the watchdog
-		System.out.print("Starting watchdog...");
-		watchdog = new Watchdog(this);
-		watchdog.start();
-		System.out.println("Success");
+		watchdog.run();
 		
 		//Open socket and respond to requests
 		//TODO: This access pattern should change. The socket should be created outside of the thread that queries it.
@@ -262,7 +268,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		if(servThread != null)
 			servThread.kill();
 		netMgr.stop();
-		watchdog.kill();
+		watchdog.stop();
 		for(AbstractModule m : modules)
 			m.stop();
 		for(ScheduledThreadPoolExecutor e : executors)
@@ -298,7 +304,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 */
 	//TODO:This may be removed in favor of direct communication.
 	public boolean addDiscoveredNode(RemoteNode rn){
-		watchdog.beaconed(rn);
+		((Watchdog)watchdog).beaconed(rn);
 		return ((OverlayManager) netMgr).addDiscoveredNode(rn);
 	}
 	
@@ -318,7 +324,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	public long startJob(String classPath, String className, RemoteNode source, String remoteTid, File initData, boolean cleanup){
 		JobEnvironment jobThread = null;
 		try {
-			jobThread = new JobEnvironment(this, className, new File(classPath), source, remoteTid, initData, watchdog, cleanup, new JobEnvironment.JobStateListener(){
+			jobThread = new JobEnvironment(this, className, new File(classPath), source, remoteTid, initData, (Watchdog)watchdog, cleanup, new JobEnvironment.JobStateListener(){
 				@Override
 				public void jobLoaded(JobEnvironment wrapper, LocalJob job) {
 					jobs.put(wrapper.getId(), job);
@@ -402,7 +408,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 * @return The running Watchdog for this node.
 	 */
 	public Watchdog getWatchdog(){
-		return watchdog;
+		return (Watchdog)watchdog;
 	}
 	
 	/**

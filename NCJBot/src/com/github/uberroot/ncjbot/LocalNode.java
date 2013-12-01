@@ -1,7 +1,7 @@
 package com.github.uberroot.ncjbot;
 import java.io.File;
 import java.io.IOException;
-import java.net.UnknownHostException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
@@ -11,6 +11,8 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import com.github.uberroot.ncjbot.api.LocalJob;
 import com.github.uberroot.ncjbot.api.JobEnvironment;
+import com.github.uberroot.ncjbot.modules.AbstractModule;
+import com.github.uberroot.ncjbot.modules.OverlayManager;
 
 /**
  * <p>This is the core of the NCJBot. It is responsible for connecting to the network,
@@ -38,6 +40,11 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	private NodeState state = NodeState.UNKNOWN;
 	
 	/**
+	 * <p>All of the non-vital modules.</p>
+	 */
+	private ArrayList<AbstractModule> modules;
+	
+	/**
 	 * <p>The ConfigManager for this node.</p>
 	 */
 	private ConfigManager configManager;
@@ -45,7 +52,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	/**
 	 * <p>The OverlayManager for this node.</p>
 	 */
-	private OverlayManager netMgr;
+	private AbstractModule netMgr;
 	
 	/**
 	 * <p>The port on which to listen for new connections.</p>
@@ -69,9 +76,9 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	private ServerThread servThread;
 	
 	/**
-	 * <p>The ScheduledThreadPoolExecutor used for centralized delayed callbacks.</p>
+	 * <p>The list of ScheduledThreadPoolExecutor used for the various components.</p>
 	 */
-	private ScheduledThreadPoolExecutor executor;
+	private ArrayList<ScheduledThreadPoolExecutor> executors;
 	
 	/**
 	 * <p>Entry point for the program. This loads the sole LocalNode instance.</p>
@@ -97,36 +104,54 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 * command line interface for utilizing the node.</p>
 	 * 
 	 * @throws IOException
+	 * @throws ClassNotFoundException 
+	 * @throws SecurityException 
+	 * @throws NoSuchMethodException 
+	 * @throws InvocationTargetException 
+	 * @throws IllegalArgumentException 
+	 * @throws IllegalAccessException 
+	 * @throws InstantiationException 
+	 * @throws NCJBotException 
 	 */
-	private LocalNode() throws IOException{
+	private LocalNode() throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, NCJBotException{
 		//Load the configuration
 		configManager = new ConfigManager(this, new File("config.Properties"));
 
-		//Create the executor service
-		executor = new ScheduledThreadPoolExecutor(2); //TODO: This should be configurable.
+		//Create the thread pools / executors
+		executors = new ArrayList<ScheduledThreadPoolExecutor>();
+		String pools[] = configManager.getSetting("LocalNode", "threadPools").split(",");
+		for(String s : pools)
+			executors.add(new ScheduledThreadPoolExecutor(Integer.valueOf(s.trim())));
+		
+		//Load modules
+		modules = new ArrayList<AbstractModule>();
+		String mods[] = configManager.getSetting("LocalNode", "modules").split(",");
+		for(String s : mods){
+			System.out.println("Loading Module " + s + "...");
+			Class<? extends AbstractModule> c = (Class<? extends AbstractModule>) ClassLoader.getSystemClassLoader().loadClass(s).asSubclass(AbstractModule.class);
+			if(OverlayManager.class.isAssignableFrom(c)){
+				if(netMgr == null)
+					netMgr = c.getConstructor(LocalNode.class).newInstance(this);
+				else
+					throw new NCJBotException("Duplicate OverlayManager Modules Configured"); //TODO: This should be it's own exception subclass
+			}
+			else
+				modules.add(c.getConstructor(LocalNode.class).newInstance(this));
+		}
+		
+		//Make sure the vital modules have been loaded
+		if(netMgr == null)
+			throw new NCJBotException("An OverlayManager has not been loaded"); //TODO: This should be it's own exception subclass
+		
+		//Allow the modules to link
+		for(AbstractModule m : modules)
+			m.link();
 		
 		//Start the watchdog
 		System.out.print("Starting watchdog...");
 		watchdog = new Watchdog(this);
 		watchdog.start();
 		System.out.println("Success");
-		
-		//Load the seed nodes
-		ArrayList<RemoteNode> seedNodes = new ArrayList<RemoteNode>();
-		String seedStrings[] = configManager.getSetting("LocalNode", "seedNodes").split(",");
-		for(String s : seedStrings){
-			String seed[] = s.trim().split(":");
-			try{
-				seedNodes.add(new RemoteNode(this, seed[0], Integer.valueOf(seed[1])));
-			}
-			catch(UnknownHostException e){
-				//Ignore the seed
-				System.err.println("Bad seed hostname in configuration: " + s);
-			}
-		}
-		
-		//Setup the overlay manager
-		netMgr = new OverlayManager(this, seedNodes);//TODO: The network should not be joined until the server is running
 		
 		//Open socket and respond to requests
 		//TODO: This access pattern should change. The socket should be created outside of the thread that queries it.
@@ -150,12 +175,16 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 			state = NodeState.RUNNING;
 			
 			//Join the network
-			netMgr.startBeacon();
+			netMgr.run();
 		}
 		else{
 			System.err.print("Unable to start server and join network. Please adjust your configuration.\n");
 			quit();
 		}
+		
+		//Start the non-vital modules
+		for(AbstractModule m : modules)
+			m.run();
 		
 		//Handle console input
 		//TODO: This is a rudimentary console for testing. This functionality should be moved to its own class.
@@ -173,7 +202,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 				}
 			}
 			else if(command.equalsIgnoreCase("GET NODES")){
-				List<RemoteNode> nodes = netMgr.getActiveNodes();
+				List<RemoteNode> nodes = ((OverlayManager)netMgr).getActiveNodes();
 				String out = nodes.size() + " nodes are known\n";
 				for(RemoteNode n : nodes)
 					out += n.getIpAddress().toString() + ":" + n.getListeningPort() + "\n";
@@ -232,9 +261,12 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		//TODO: Graceful network removal should occur, but may not be necessary for the current lazy communication model
 		if(servThread != null)
 			servThread.kill();
-		netMgr.stopBeacon();
+		netMgr.stop();
 		watchdog.kill();
-		executor.shutdown();
+		for(AbstractModule m : modules)
+			m.stop();
+		for(ScheduledThreadPoolExecutor e : executors)
+			e.shutdown();
 		System.exit(0);
 	}
 	
@@ -267,7 +299,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	//TODO:This may be removed in favor of direct communication.
 	public boolean addDiscoveredNode(RemoteNode rn){
 		watchdog.beaconed(rn);
-		return netMgr.addDiscoveredNode(rn);
+		return ((OverlayManager) netMgr).addDiscoveredNode(rn);
 	}
 	
 	/**
@@ -361,7 +393,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 * @return The running OverlayManager for this node.
 	 */
 	public OverlayManager getOverlayManager(){
-		return netMgr;
+		return (OverlayManager)netMgr;
 	}
 	
 	/**
@@ -383,13 +415,13 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	}
 	
 	/**
-	 * Gets the ScheduledThreadPoolExecutor used for timed callbacks.
+	 * <p>Gets the ScheduledThreadPoolExecutor that will be used to execute tasks on the given thread pool.</p>
 	 * 
-	 * @return The ScheduledThreadPoolExecutor used for timed callbacks.
+	 * @param poolNum The thread pool index (starting at 0).
+	 * @return The ScheduledThreadPoolExecutor that will be used to execute tasks on the given thread pool.
 	 */
-	//TODO: This will be replaced with a multiple thread pool design
-	public ScheduledThreadPoolExecutor getExecutor(){
-		return executor;
+	public ScheduledThreadPoolExecutor getExecutor(int poolNum){
+		return executors.get(poolNum);
 	}
 
 	@Override

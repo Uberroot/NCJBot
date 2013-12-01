@@ -1,4 +1,4 @@
-package com.github.uberroot.ncjbot;
+package com.github.uberroot.ncjbot.modules;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
@@ -9,13 +9,18 @@ import java.util.Random;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import com.github.uberroot.ncjbot.ConfigManager;
+import com.github.uberroot.ncjbot.LocalNode;
+import com.github.uberroot.ncjbot.NodeState;
+import com.github.uberroot.ncjbot.NodeStateException;
+import com.github.uberroot.ncjbot.RemoteNode;
+
 /**
  * <p>This class keeps track of other nodes within the network. The nodes within a network only know of each
  * others status through direct communication. Network updates are not currently relayed to other nodes; rather a node
  * figures out the status of a remote node when it needs something from that remote node. The network manager maintains a timer
  * to rebroadcast its presence to the rest of the network. This allows the network to recover this node
- * in the event a connection error resulted in this node being removed from the active list of other nodes.
- * Currently, this timer is set to announce the presence of the node once per hour (non-configurable).</p>
+ * in the event a connection error resulted in this node being removed from the active list of other nodes.</p>
  * 
  * <p>Currently, there is little functionality regarding monitoring node network health; remote node health is implemented using a lazy algorithm.
  * Nodes alert all other nodes when they join the network. Any time one node needs something from another node, it will try to connect. If
@@ -56,12 +61,7 @@ import java.util.concurrent.TimeUnit;
  */
 //TODO: This should be a singleton class
 //TODO: There should be a method for internal removal of nodes
-public final class OverlayManager implements Runnable, UnsafeObject<com.github.uberroot.ncjbot.api.OverlayManager>, RemoteNode.EventListener{
-	/**
-	 * <p>The running LocalNode instance.</p>
-	 */
-	private LocalNode node;
-	
+public final class LazyOverlayManager extends AbstractModule implements OverlayManager, RemoteNode.EventListener{
 	/**
 	 * <p>The list of all nodes known to be active on the network.</p>
 	 */
@@ -81,12 +81,27 @@ public final class OverlayManager implements Runnable, UnsafeObject<com.github.u
 	 * @param node The running LocalNode instance.
 	 * @param seedNodes The initial list of nodes to query. These should be considered the entry points for the network.
 	 */
-	public OverlayManager(LocalNode node, ArrayList<RemoteNode> seedNodes){
-		this.node = node;
+	public LazyOverlayManager(LocalNode node){
+		super(node);
+		
 		activeNodes = new ArrayList<RemoteNode>();
 		
 		//Query seed nodes for node lists
 		System.out.println("Attempting to connect to seed nodes...");
+		
+		ArrayList<RemoteNode> seedNodes = new ArrayList<RemoteNode>();
+		String seedStrings[] = node.getConfigManager().getSetting(name, "seedNodes").split(",");
+		for(String s : seedStrings){
+			String seed[] = s.trim().split(":");
+			try{
+				seedNodes.add(new RemoteNode(node, seed[0], Integer.valueOf(seed[1])));
+			}
+			catch(UnknownHostException e){
+				//Ignore the seed
+				System.err.println("Bad seed hostname in configuration: " + s);
+			}
+		}
+		
 		for(int i = 0; i < seedNodes.size(); i++){
 			RemoteNode n = seedNodes.get(i);
 			
@@ -151,46 +166,7 @@ public final class OverlayManager implements Runnable, UnsafeObject<com.github.u
 	/**
 	 * <p>This method performs a beacon alerting nodes in the network of this node's presence. </p>
 	 */
-	@Override
-	public synchronized void run(){
-		System.out.println("Announcing presence...");
-		for(int i = 0; i < activeNodes.size(); i++){
-			RemoteNode n = activeNodes.get(i);
-			try {
-				//Temporarily remove self from the listener to fix synchronization issues.
-				//TODO: This is to fix synchronization issues.
-				n.removeEventListener(this);
-				n.beacon();
-				//Begin listening again
-				//TODO: This is to fix synchronization issues.
-				n.addEventListener(this);
-			}
-			catch (ConnectException e) { //Could not connect
-				//If here, either host doesn't exist, or is not listening on the port
-				System.err.println("Unable to connect: " + n);
-				node.announceNodeFailure(activeNodes.remove(i--));
-			}
-			catch (IOException e) {
-				//If here, communication is not reliable
-				System.err.println("Unreliable: " + n);
-				node.announceNodeFailure(activeNodes.remove(i--));
-			}
-			catch (NodeStateException e) {
-				switch(e.getState()){
-					case SHUTTING_DOWN:{
-						//TODO: This isn't a failure, but should this be announced via LocalNode?
-						activeNodes.remove(i--);
-						break;
-					}
-					case RUNNING:
-					case UNKNOWN:{
-						//TODO: This isn't a failure, but should this be announced via LocalNode?
-						break;
-					}
-				}
-			}
-		}
-	}
+	
 
 	/**
 	 * <p>Retrieves a copy of the known active nodes for the network.</p>
@@ -313,22 +289,88 @@ public final class OverlayManager implements Runnable, UnsafeObject<com.github.u
 		System.err.println("Removing unreliable node: " + node);
 	}
 	
-	/**
-	 * <p>Starts the periodic beacon to other nodes.</p>
-	 */
-	public void startBeacon(){
-		//Register with the timer provider
-		if(future == null)
-			future = node.getExecutor().scheduleAtFixedRate(this, 0, 60, TimeUnit.MINUTES);
-		//TODO: This should throw an exception. Add exceptions for bad component states
+	@Override
+	public void link() {
+		// TODO Auto-generated method stub
+		
 	}
 	
-	/**
-	 * <p>Stops the OverlayManager from beaconing other nodes.</p>
-	 */
-	public void stopBeacon(){
-		if(future != null)
-			future.cancel(false);
-		future = null;
+	@Override
+	public synchronized void run(){
+		if(future == null){
+			ConfigManager c = node.getConfigManager();
+			synchronized(c){
+				Long interval = Long.valueOf(c.getSetting(name, "interval"));
+				String unit = c.getSetting(name, "intervalUnit");
+				future = executor.scheduleAtFixedRate(new Runnable(){
+					@Override
+					public void run() {
+						System.out.println("Announcing presence...");
+						for(int i = 0; i < activeNodes.size(); i++){
+							RemoteNode n = activeNodes.get(i);
+							try {
+								//Temporarily remove self from the listener to fix synchronization issues.
+								//TODO: This is to fix synchronization issues.
+								n.removeEventListener(LazyOverlayManager.this);
+								n.beacon();
+								//Begin listening again
+								//TODO: This is to fix synchronization issues.
+								n.addEventListener(LazyOverlayManager.this);
+							}
+							catch (ConnectException e) { //Could not connect
+								//If here, either host doesn't exist, or is not listening on the port
+								System.err.println("Unable to connect: " + n);
+								node.announceNodeFailure(activeNodes.remove(i--));
+							}
+							catch (IOException e) {
+								//If here, communication is not reliable
+								System.err.println("Unreliable: " + n);
+								node.announceNodeFailure(activeNodes.remove(i--));
+							}
+							catch (NodeStateException e) {
+								switch(e.getState()){
+									case SHUTTING_DOWN:{
+										//TODO: This isn't a failure, but should this be announced via LocalNode?
+										activeNodes.remove(i--);
+										break;
+									}
+									case RUNNING:
+									case UNKNOWN:{
+										//TODO: This isn't a failure, but should this be announced via LocalNode?
+										break;
+									}
+								}
+							}
+						}
+					}
+				}, 0, interval, TimeUnit.valueOf(unit));
+			}
+            //TODO: This should throw an exception. Add exceptions for bad component states
+		}
+	}
+
+	@Override
+	public void pause() {
+		stop();
+	}
+
+	@Override
+	public void resume() {
+		run();
+	}
+
+	@Override
+	public void stop() {
+		synchronized(future){
+			if(future != null)
+				future.cancel(false);
+			future = null;
+		}
+	}
+
+	@Override
+	public void unlink() {
+		// TODO Auto-generated method stub
+		
 	}
 }

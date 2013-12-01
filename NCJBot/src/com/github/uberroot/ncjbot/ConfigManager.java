@@ -10,8 +10,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.Vector;
 
-import com.github.uberroot.ncjbot.RemoteNode.EventListener;
-
 /**
  * <p>This class is responsible for loading, maintaining, and retrieving configuration data.
  * Configuration data is loaded from a Properties file and stored with keys in the format "&lt;section&gt;.&lt;setting&gt;".

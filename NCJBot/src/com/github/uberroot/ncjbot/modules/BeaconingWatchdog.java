@@ -25,7 +25,6 @@ import com.github.uberroot.ncjbot.UnsafeObject;
  * @author Carter Waxman
  *
  */
-//TODO: This shouldn't be a Thread subclass as it exposes public methods through thread enumeration
 //TODO: It should be possible for the Watchdog to listen for RemoteNodes being added and removed from the OverlayManager
 public final class BeaconingWatchdog extends AbstractModule implements Watchdog{
 	/**

@@ -124,7 +124,7 @@ public final class JobEnvironment extends Thread {
 		type = cl.loadClass(className).asSubclass(LocalJob.class);
 		cl.close();
 		
-		this.setName("Processor Job (localTid = " + this.getId() + ")");
+		this.setName(className + " (localTid = " + this.getId() + ")");
 		
 		this.watchdog = watchdog;
 		this.cleanup =  cleanup;

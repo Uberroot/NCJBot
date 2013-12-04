@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Hashtable;
-import java.util.List;
-import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
@@ -116,7 +114,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 */
 	private LocalNode() throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, NCJBotException{
 		//Load the configuration
-		configManager = new ConfigManager(this, new File("config.Properties"));
+		configManager = new ConfigManager(this, new File("config.properties"));
 
 		//Create the thread pools / executors
 		executors = new ArrayList<ScheduledThreadPoolExecutor>();
@@ -191,73 +189,39 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		//Start the non-vital modules
 		for(AbstractModule m : modules)
 			m.run();
-		
-		//Handle console input
-		//TODO: This is a rudimentary console for testing. This functionality should be moved to its own class.
-		//TODO: Look into lanterna (https://code.google.com/p/lanterna/) for creating the console. This should allow switching between panels and I/O splitting without a GUI
-		Scanner scan = new Scanner(System.in);
-		System.out.println("Console initialized... What would you like to do?");
-		while(true){
-			System.out.print("> ");
-			String command = scan.nextLine().trim();
-			if(command.equalsIgnoreCase("GET THREADS")){
-				Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-				System.out.println(threadSet.size() + " threads are running");
-				for(Thread t : threadSet){
-					System.out.println(t.getName());
-				}
-			}
-			else if(command.equalsIgnoreCase("GET NODES")){
-				List<RemoteNode> nodes = ((OverlayManager)netMgr).getActiveNodes();
-				String out = nodes.size() + " nodes are known\n";
-				for(RemoteNode n : nodes)
-					out += n.getIpAddress().toString() + ":" + n.getListeningPort() + "\n";
-				System.out.print(out);
-			}
-			//TODO: Gracefully disconnect.
-			else if(command.equalsIgnoreCase("STOP SERVER")){
-				if(servThread != null){
-					servThread.kill();
-					servThread = null;
-				}
-				else
-					System.err.println("The server is not running");
-			}
-			//TODO: Should this force a presence announcement / node info update?
-			else if(command.equalsIgnoreCase("START SERVER")){
-				if(servThread != null && servThread.isRunning()){
-					System.err.println("The server is already running");
-					continue;
-				}
-				try{
-					servThread = new ServerThread(this, listenPort);
-					servThread.start();
-				}
-				catch(IOException e){
-					System.err.println(e.getMessage());
-					System.err.println("Did you forget to stop the server?");
-				}
-			}
-			else if(command.equalsIgnoreCase("QUIT")){
-				quit();
-				break;
-			}
-			//TODO: Should this force a presence announcement / node info update?
-			//TODO: A transitional phase should occur when changing ports to finish running jobs before restarting and accepting new jobs
-			else if(command.equalsIgnoreCase("SET PORT")){
-				System.out.print("Enter the new port (restart server to apply): ");
-				listenPort = scan.nextInt();
-				scan.nextLine();
-			}
-			else if(command.equalsIgnoreCase("START JOB")){
-				System.out.println("Enter path to class");
-				File path = new File(scan.nextLine().trim());
-				startJob(path.getParent(), path.getName().replaceFirst("\\.class$", ""), new RemoteNode(this, "127.0.0.1", listenPort), null, null, false);
-			}
-			else
-				System.out.println("What?");
+	}
+	
+	/**
+	 * <p>Attempts to stop the server.</p>
+	 * 
+	 * @deprecated This is here temporarily to aid transition to modules
+	 * @return True if the server was already running and could be stopped, false if it was not running and could not be stopped.
+	 */
+	public boolean stopServer(){
+		if(servThread != null){
+			servThread.kill();
+			servThread = null;
+			return true;
 		}
-		scan.close();
+		else
+			return false;
+	}
+	
+	/**
+	 * <p>Attempts to start the server.</p>
+	 * 
+	 * @deprecated This is here temporarily to aid transition to modules
+	 * @return True if the server was not already running and could be started, false if it was running and could not be started.
+	 * @throws IOException 
+	 */
+	public boolean startServer() throws IOException{
+		if(servThread != null && servThread.isRunning()){
+			System.err.println("The server is already running");
+			return false;
+		}
+		servThread = new ServerThread(this, listenPort);
+		servThread.start();
+		return true;
 	}
 	
 	/**
@@ -288,12 +252,24 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	/**
 	 * <p>Gets the current port on which the server socket should listen.</p>
 	 * 
+	 * @deprecated This will be moved to a different class
 	 * @return The current port on which the server socket should listen.
 	 */
 	//TODO: This should be moved to ServerThread.
 	//TODO: A distinction should be made between the current port and the configured port.
 	public int getListenPort(){
 		return listenPort;
+	}
+	
+	/**
+	 * <p>Sets a new port to use for incoming connections. The server will need to be restarted to apply this port setting.</p>
+	 * 
+	 * @deprecated This will be moved to a different class
+	 * 
+	 * @param port The new listen port
+	 */
+	public void setListenPort(int port){
+		listenPort = port;
 	}
 	
 	/**

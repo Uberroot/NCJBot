@@ -22,6 +22,9 @@ public abstract class AbstractModule implements Runnable{
 	 */
 	protected final String name;
 	
+	/**
+	 * <p>The thread pool executor assigned to the module.</p>
+	 */
 	protected final ScheduledThreadPoolExecutor executor;
 	
 	/**

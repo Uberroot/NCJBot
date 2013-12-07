@@ -3,7 +3,7 @@ package com.github.uberroot.ncjbot.api;
 import com.github.uberroot.ncjbot.RemoteNode;
 
 /**
- * <p>A public-safe wrapper for {@link com.github.uberroot.ncjbot.Watchdog}.</p>
+ * <p>A public-safe wrapper for {@link com.github.uberroot.ncjbot.modapi.Watchdog}.</p>
  * 
  * @deprecated This entire class will be removed from the public API and it's functionality will be provided automatically.
  * @author Carter Waxman
@@ -14,14 +14,14 @@ public final class Watchdog {
 	/**
 	 * <p>The actual Watchdog.</p>
 	 */
-	private com.github.uberroot.ncjbot.modules.Watchdog watchdog;
+	private com.github.uberroot.ncjbot.modapi.Watchdog watchdog;
 	
 	/**
 	 * <p>Initializes this public-safe Watchdog with an actual Watchdog.</p>
 	 * 
 	 * @param node The actual Watchdog.
 	 */
-	public Watchdog(com.github.uberroot.ncjbot.modules.Watchdog watchdog){
+	public Watchdog(com.github.uberroot.ncjbot.modapi.Watchdog watchdog){
 		this.watchdog = watchdog;
 	}
 	

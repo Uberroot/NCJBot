@@ -5,7 +5,7 @@ import java.util.List;
 import com.github.uberroot.ncjbot.RemoteNode;
 
 /**
- * <p>A public-safe wrapper for {@link com.github.uberroot.ncjbot.modules.OverlayManager}.</p>
+ * <p>A public-safe wrapper for {@link com.github.uberroot.ncjbot.modapi.OverlayManager}.</p>
  * 
  * @author Carter Waxman
  *
@@ -14,14 +14,14 @@ public final class OverlayManager {
 	/**
 	 * <p>The actual OverlayManager.</p>
 	 */
-	private final com.github.uberroot.ncjbot.modules.OverlayManager manager;
+	private final com.github.uberroot.ncjbot.modapi.OverlayManager manager;
 	
 	/**
 	 * <p>Initializes this public-safe OverlayManager with an actual OverlayManager.</p>
 	 * 
 	 * @param manager The actual OverlayManager.
 	 */
-	public OverlayManager(com.github.uberroot.ncjbot.modules.OverlayManager manager){
+	public OverlayManager(com.github.uberroot.ncjbot.modapi.OverlayManager manager){
 		this.manager = manager;
 	}
 

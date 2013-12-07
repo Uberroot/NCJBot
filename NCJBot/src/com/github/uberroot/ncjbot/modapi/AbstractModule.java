@@ -1,4 +1,4 @@
-package com.github.uberroot.ncjbot.modules;
+package com.github.uberroot.ncjbot.modapi;
 
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
@@ -10,6 +10,7 @@ import com.github.uberroot.ncjbot.LocalNode;
  * @author Carter Waxman
  *
  */
+//TODO: A distinction should be made between active (thread consuming) and passive modules
 public abstract class AbstractModule implements Runnable{
 	/**
 	 * <p>The running LocalNode instance.</p>

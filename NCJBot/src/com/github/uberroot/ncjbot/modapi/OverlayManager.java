@@ -1,4 +1,4 @@
-package com.github.uberroot.ncjbot.modules;
+package com.github.uberroot.ncjbot.modapi;
 
 import java.util.List;
 import com.github.uberroot.ncjbot.RemoteNode;

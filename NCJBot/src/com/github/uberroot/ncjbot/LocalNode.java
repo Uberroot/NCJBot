@@ -9,9 +9,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import com.github.uberroot.ncjbot.api.LocalJob;
 import com.github.uberroot.ncjbot.api.JobEnvironment;
-import com.github.uberroot.ncjbot.modules.AbstractModule;
-import com.github.uberroot.ncjbot.modules.OverlayManager;
-import com.github.uberroot.ncjbot.modules.Watchdog;
+import com.github.uberroot.ncjbot.modapi.*;
 
 /**
  * <p>This is the core of the NCJBot. It is responsible for connecting to the network,
@@ -80,6 +78,11 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	private ArrayList<ScheduledThreadPoolExecutor> executors;
 	
 	/**
+	 * <p>The connection factory for this node.</p>
+	 */
+	private AbstractModule conFact;
+	
+	/**
 	 * <p>Entry point for the program. This loads the sole LocalNode instance.</p>
 	 * 
 	 * @see LocalNode#LocalNode()
@@ -140,6 +143,12 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 				else
 					throw new NCJBotException("Duplicate Watchdog Modules Configured"); //TODO: This should be it's own exception subclass
 			}
+			else if(ConnectionFactory.class.isAssignableFrom(c)){
+				if(conFact == null)
+					conFact = c.getConstructor(LocalNode.class).newInstance(this);
+				else
+					throw new NCJBotException("Duplicate ConnectionFactory Modules Configured"); //TODO: This should be it's own exception subclass
+			}
 			else
 				modules.add(c.getConstructor(LocalNode.class).newInstance(this));
 		}
@@ -149,10 +158,19 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 			throw new NCJBotException("An OverlayManager has not been loaded"); //TODO: This should be it's own exception subclass
 		if(watchdog == null)
 			throw new NCJBotException("A Watchdog has not been loaded"); //TODO: This should be it's own exception subclass
+		if(conFact == null)
+			throw new NCJBotException("A ConnectionFactory has not been loaded"); //TODO: This should be it's own exception subclass
+		
 		
 		//Allow the modules to link
+		netMgr.link();
+		watchdog.link();
+		conFact.link();
 		for(AbstractModule m : modules)
 			m.link();
+		
+		//Start the connection factory
+		conFact.run();
 		
 		//Start the watchdog
 		watchdog.run();
@@ -228,11 +246,11 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 * Closes all connections and threads and allows the node to gracefully quit.
 	 */
 	public void quit(){
-		//TODO: Graceful network removal should occur, but may not be necessary for the current lazy communication model
 		if(servThread != null)
 			servThread.kill();
 		netMgr.stop();
 		watchdog.stop();
+		conFact.run();
 		for(AbstractModule m : modules)
 			m.stop();
 		for(ScheduledThreadPoolExecutor e : executors)
@@ -394,6 +412,15 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 */
 	public ConfigManager getConfigManager(){
 		return configManager;
+	}
+	
+	/**
+	 * <p>Gets the current connection factory.</p>
+	 * 
+	 * @return the current connection factory.
+	 */
+	public ConnectionFactory getConnectionFactory(){
+		return (ConnectionFactory)conFact;
 	}
 	
 	/**

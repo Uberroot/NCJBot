@@ -3,16 +3,15 @@ package com.github.uberroot.ncjbot.modules;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.UnknownHostException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Scanner;
 import java.util.Set;
 
 import com.github.uberroot.ncjbot.LocalNode;
 import com.github.uberroot.ncjbot.RemoteNode;
+import com.github.uberroot.ncjbot.modapi.AbstractModule;
 
 /**
  * <p>A simple CLI that supports basic operations on the local node.</p>
@@ -58,14 +57,13 @@ public class TestCLI extends AbstractModule {
 			}
 		});
 		
-		//Take control of output stream
+		//Take control of output streams
 		System.setOut(new TaggedStream(cout, Boolean.valueOf(node.getConfigManager().getSetting(name, "tagOut"))));
 		System.setErr(new TaggedStream(cerr, Boolean.valueOf(node.getConfigManager().getSetting(name, "tagErr"))));
 	}
 
 	@Override
 	public void run() {
-		//TODO: This is a rudimentary console for testing. This functionality should be moved to its own class.
 		//TODO: Look into lanterna (https://code.google.com/p/lanterna/) for creating the console. This should allow switching between panels and I/O splitting without a GUI
 		scan = new Scanner(cin);
 
@@ -75,12 +73,10 @@ public class TestCLI extends AbstractModule {
 			public void run() {
 				cout.println("Console initialized... What would you like to do?");
 				while(true){
+					while(pause)
+						Thread.yield();
 					cout.print("> ");
 					String command = scan.nextLine().trim();
-					while(pause)
-						try {
-							this.wait();
-						} catch (InterruptedException e1) {}
 					if(command.equalsIgnoreCase("GET THREADS")){
 						Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
 						cout.println(threadSet.size() + " threads are running");
@@ -147,7 +143,6 @@ public class TestCLI extends AbstractModule {
 	@Override
 	public synchronized void resume() {
 		pause = false;
-		this.notifyAll();
 	}
 
 	@Override
@@ -191,7 +186,7 @@ public class TestCLI extends AbstractModule {
 		@Override
 		public void write(byte[] buf, int off, int len){
 			byte[] s = (" :" + Thread.currentThread().getName() + ": ").getBytes();
-			if(tag && buf.length > 0 && !(buf[0] == 13 && buf[1] == 10)) //Ignore only newlines
+			if(tag && buf.length > 0 && !(buf[0] == 13 && buf[1] == 10)) //Ignore calls that only contain newlines
 				super.write(s, 0, s.length);
 			super.write(buf, off, len);
 		}

@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
 
+import com.github.uberroot.ncjbot.modapi.ConnectionFactory.Connection;
+
 
 /**
  * <p>This class is responsible for holding data about remote nodes and handling the underlying socket communication.</p>
@@ -212,23 +214,22 @@ public final class RemoteNode {
 	public synchronized List<RemoteNode> getKnownNodes() throws IOException, NodeStateException{
 		ArrayList<RemoteNode> ret = new ArrayList<RemoteNode>();
 
-		Socket s = null;
+		Connection c = null;
 		try {
 			//Try to create socket
-			s = new Socket(ipAddress, listeningPort); //Could throw a ConnectionException
+			c = node.getConnectionFactory().getConnection(this); //Could throw a ConnectionException
 			
 			//See if node is active
-			char buffer[] = new char[1500];
-			BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
-			s.getOutputStream().write("Are you alive?".getBytes());
-			in.read(buffer);
+			byte buffer[] = new byte[1500];
+			c.write("Are you alive?".getBytes());
+			c.read(buffer);
 			
-			if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
+			if(new String(buffer, "ASCII").trim().equals("I'm not dead yet.")){
 				setState(NodeState.RUNNING);
-				s.getOutputStream().write("Who do you know?".getBytes());
-				buffer = new char[1500];
-				in.read(buffer);
-				String[] nodeStrings = String.valueOf(buffer).trim().split("\n");
+				c.write("Who do you know?".getBytes());
+				buffer = new byte[1500];
+				c.read(buffer);
+				String[] nodeStrings = new String(buffer, "ASCII").trim().split("\n");
 				
 				//Parse the node list from this node
 				for(String ns : nodeStrings){
@@ -244,7 +245,8 @@ public final class RemoteNode {
 					}
 				}
 			}
-			else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
+			
+			else if(new String(buffer, "ASCII").trim().equals("I'm bleeding out.")){
 				//Node is shutting down
 				setState(NodeState.SHUTTING_DOWN);
 				throw new NodeStateException(NodeState.SHUTTING_DOWN);
@@ -256,7 +258,7 @@ public final class RemoteNode {
 			}
 				
 			//Allow the server to close the connection
-			s.getOutputStream().write("Goodbye.".getBytes());
+			c.write("Goodbye.".getBytes());
 		} catch (IOException e) {
 			//Communication error of some sort. Throw exception and fall through to the socket closure.
 			nodeConnectionFailed();
@@ -264,8 +266,8 @@ public final class RemoteNode {
 		}
 		finally{
 			//Close the socket
-			if(s != null)
-				s.close();
+			if(c != null)
+				c.release();
 		}
 		
 		return ret;
@@ -284,35 +286,34 @@ public final class RemoteNode {
 	//TODO: Abstract the data storage and account for size and performance issues automatically
 	//TODO: This method should be merged with RemoteJob.sendData(byte[])
 	public synchronized void sendData(String destTid, byte[] data) throws IOException, NodeStateException{
-		Socket s = null;
+		Connection c = null;
 		try {
 			//Try to create socket
-			s = new Socket(ipAddress, listeningPort);
+			c = node.getConnectionFactory().getConnection(this);
 			
-			char buffer[] = new char[1500];
-			BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+			byte buffer[] = new byte[1500];
 			
 			//See if node is active
-			s.getOutputStream().write("Are you alive?".getBytes());
-			in.read(buffer);
+			c.write("Are you alive?".getBytes());
+			c.read(buffer);
 			
-			if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
+			if(new String(buffer, "ASCII").trim().equals("I'm not dead yet.")){
 				setState(NodeState.RUNNING);
-				s.getOutputStream().write("I have results.".getBytes());
-				in.read(buffer); //What did you find?
+				c.write("I have results.".getBytes());
+				c.read(buffer); //What did you find?
 				
 				//Send the listening port for this node to allow node identification
-				s.getOutputStream().write((node.getListenPort() + "\n").getBytes());
+				c.write((node.getListenPort() + "\n").getBytes());
 				
 				//Send the remote(parent) process id, local process id
-				s.getOutputStream().write((destTid + "\n").getBytes());
-				s.getOutputStream().write((Thread.currentThread().getId() + "\n").getBytes()); //TODO: This assumes that the thread calling this method is the one that runs the LocalJob
+				c.write((destTid + "\n").getBytes());
+				c.write((Thread.currentThread().getId() + "\n").getBytes()); //TODO: This assumes that the thread calling this method is the one that runs the LocalJob
 				
 				//Send the result length and data
-				s.getOutputStream().write((data.length + "\n").getBytes());
-				s.getOutputStream().write(data);
+				c.write((data.length + "\n").getBytes());
+				c.write(data);
 			}
-			else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
+			else if(new String(buffer, "ASCII").trim().equals("I'm bleeding out.")){
 				//Node is shutting down
 				setState(NodeState.SHUTTING_DOWN);
 				throw new NodeStateException(NodeState.SHUTTING_DOWN);
@@ -322,8 +323,7 @@ public final class RemoteNode {
 				setState(NodeState.UNKNOWN);
 				throw new NodeStateException(NodeState.UNKNOWN);
 			}
-			s.getOutputStream().write("Goodbye.".getBytes());
-			s.close();
+			c.write("Goodbye.".getBytes());
 		} catch (IOException e) {
 			//Communication error of some sort. Throw exception and fall through to the socket closure.
 			nodeConnectionFailed();
@@ -331,8 +331,8 @@ public final class RemoteNode {
 		}
 		finally{
 			//Close the socket
-			if(s != null)
-				s.close();
+			if(c != null)
+				c.release();
 		}
 	}
 	
@@ -357,50 +357,51 @@ public final class RemoteNode {
 	public synchronized long sendJob(long ownerTid, File worker, byte[] params) throws IOException, NodeStateException{
 		long ret = 0;
 		
-		Socket s = null;
+		Connection c = null;
 		try {
 			//Try to create socket
-			s = new Socket(ipAddress, listeningPort);
+			c = node.getConnectionFactory().getConnection(this);
 			
-			char buffer[] = new char[1500];
-			BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+			byte buffer[] = new byte[1500];
 			
 			//See if node is active
-			s.getOutputStream().write("Are you alive?".getBytes());
-			in.read(buffer);
+			c.write("Are you alive?".getBytes());
+			c.read(buffer);
 			
-			if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
+			if(new String(buffer, "ASCII").trim().equals("I'm not dead yet.")){
 				setState(NodeState.RUNNING);
-				s.getOutputStream().write("I have a job for you.".getBytes());
-				in.read(buffer); //What will I need?
+				c.write("I have a job for you.".getBytes());
+				c.read(buffer); //What will I need?
 				
 				//Send the listening port
-				s.getOutputStream().write((node.getListenPort() + "\n").getBytes());
+				c.write((node.getListenPort() + "\n").getBytes());
 				
 				//Send the local process id and worker class name
-				s.getOutputStream().write((ownerTid + "\n").getBytes());
-				s.getOutputStream().write((worker.getName().replaceFirst("\\.class$", "") + "\n").getBytes());
+				c.write((ownerTid + "\n").getBytes());
+				c.write((worker.getName().replaceFirst("\\.class$", "") + "\n").getBytes());
 				
 				//Send worker and param size
 				int pl = params.length;
 				long fl = worker.length();
-				s.getOutputStream().write((pl + "\n").getBytes());
-				s.getOutputStream().write((fl + "\n").getBytes());
+				c.write((pl + "\n").getBytes());
+				c.write((fl + "\n").getBytes());
 				
 				//Send worker and params
-				s.getOutputStream().write(params);
+				c.write(params);
 				BufferedInputStream fin = new BufferedInputStream(new FileInputStream(worker));
 				byte fbuffer[] = new byte[4096];
 				int read = 0;
 				while((read = fin.read(fbuffer)) != -1)
-					s.getOutputStream().write(fbuffer, 0, read);
+					c.write(fbuffer, 0, read);
 				fin.close();
 				
 				//Await remote process id
-				ret= Long.valueOf(in.readLine());
+				buffer = new byte[1500];
+				c.read(buffer);
+				ret = Long.valueOf(new String(buffer, "ASCII").trim());
 				//node.getWatchdog().registerReceiver(this);
 			}
-			else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
+			else if(new String(buffer, "ASCII").trim().equals("I'm bleeding out.")){
 				//Node is shutting down
 				setState(NodeState.SHUTTING_DOWN);
 				throw new NodeStateException(NodeState.SHUTTING_DOWN);
@@ -410,7 +411,7 @@ public final class RemoteNode {
 				setState(NodeState.UNKNOWN);
 				throw new NodeStateException(NodeState.UNKNOWN);
 			}
-			s.getOutputStream().write("Goodbye.".getBytes());
+			c.write("Goodbye.".getBytes());
 		} catch (IOException e) {
 			//Communication error of some sort. Throw exception and fall through to the socket closure.
 			nodeConnectionFailed();
@@ -418,8 +419,8 @@ public final class RemoteNode {
 		}
 		finally{
 			//Close the socket
-			if(s != null)
-				s.close();
+			if(c != null)
+				c.release();
 		}
 		return ret;
 	}
@@ -432,24 +433,23 @@ public final class RemoteNode {
 	 * @throws NodeStateException 
 	 */
 	public synchronized void beacon() throws IOException, NodeStateException{
-		Socket s = null;
+		Connection c = null;
 		try {
 			//Try to create socket
-			s = new Socket(ipAddress, listeningPort);
+			c = node.getConnectionFactory().getConnection(this);
 			
 			//See if node is active
-			char buffer[] = new char[1500];
-			BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
-			s.getOutputStream().write("Are you alive?".getBytes());
-			in.read(buffer);
+			byte buffer[] = new byte[1500];
+			c.write("Are you alive?".getBytes());
+			c.read(buffer);
 				
 			//Announce presence
-			if(String.valueOf(buffer).trim().equals("I'm not dead yet.")){
+			if(new String(buffer, "ASCII").trim().equals("I'm not dead yet.")){
 				setState(NodeState.RUNNING);
-				s.getOutputStream().write(("I'm here.\n" + node.getListenPort()).getBytes());
+				c.write(("I'm here.\n" + node.getListenPort()).getBytes());
 				
 				//TODO: should this actually be read? It tells whether the other node knew of this one.
-				in.read(buffer); //To ensure flow control
+				c.read(buffer); //To ensure flow control
 			}
 			else if(String.valueOf(buffer).trim().equals("I'm bleeding out.")){
 				setState(NodeState.SHUTTING_DOWN);
@@ -459,7 +459,7 @@ public final class RemoteNode {
 				setState(NodeState.UNKNOWN);
 				throw new NodeStateException(NodeState.UNKNOWN);
 			}
-			s.getOutputStream().write("Goodbye.".getBytes());
+			c.write("Goodbye.".getBytes());
 		} catch (IOException e) {
 			//The connection was interrupted for some reason...
 			nodeConnectionFailed();
@@ -467,8 +467,8 @@ public final class RemoteNode {
 		}
 		finally{
 			//Close the socket
-			if(s != null)
-				s.close();
+			if(c != null)
+				c.release();
 		}
 	}
 	

@@ -14,6 +14,8 @@ import com.github.uberroot.ncjbot.LocalNode;
 import com.github.uberroot.ncjbot.NodeState;
 import com.github.uberroot.ncjbot.NodeStateException;
 import com.github.uberroot.ncjbot.RemoteNode;
+import com.github.uberroot.ncjbot.modapi.AbstractModule;
+import com.github.uberroot.ncjbot.modapi.OverlayManager;
 
 /**
  * <p>This class keeps track of other nodes within the network. The nodes within a network only know of each
@@ -83,90 +85,7 @@ public final class LazyOverlayManager extends AbstractModule implements OverlayM
 	 */
 	public LazyOverlayManager(LocalNode node){
 		super(node);
-		
-		activeNodes = new ArrayList<RemoteNode>();
-		
-		//Query seed nodes for node lists
-		System.out.println("Attempting to connect to seed nodes...");
-		
-		ArrayList<RemoteNode> seedNodes = new ArrayList<RemoteNode>();
-		String seedStrings[] = node.getConfigManager().getSetting(name, "seedNodes").split(",");
-		for(String s : seedStrings){
-			String seed[] = s.trim().split(":");
-			try{
-				seedNodes.add(new RemoteNode(node, seed[0], Integer.valueOf(seed[1])));
-			}
-			catch(UnknownHostException e){
-				//Ignore the seed
-				System.err.println("Bad seed hostname in configuration: " + s);
-			}
-		}
-		
-		for(int i = 0; i < seedNodes.size(); i++){
-			RemoteNode n = seedNodes.get(i);
-			
-			System.out.print("Attempting " + n.getIpAddress() + ":" + n.getListeningPort() + "...\t");
-			List<RemoteNode> l = null;
-			try{
-				l = n.getKnownNodes();
-			}
-			catch(ConnectException e){
-				//Unable to connect to seed node. Don't add it.
-				System.out.println("Failed");
-				continue;
-			} catch (IOException e) {
-				//Communication is not reliable. Ignore this node.
-				System.out.println("Failed");
-				continue;
-			} catch (NodeStateException e) {
-				switch(e.getState()){
-					case SHUTTING_DOWN:{
-						//Don't add it, it won't be useful
-						System.out.println("Failed");
-						break;
-					}
-					case RUNNING:
-					case UNKNOWN:{
-						//Unknown or running. Either way, track it.
-						activeNodes.add(n);
-						
-						//Register as the RemoteNode.EventListener
-						n.addEventListener(this);
-						
-						System.out.println("Partial Success");
-						break;
-					}
-				}
-				continue;
-			}
-			
-			//No exceptions, add the seed node
-			activeNodes.add(n);
-			System.out.println("Success");
-			
-			//Add the retrieved nodes
-			for(RemoteNode n1 : l)
-				if(!activeNodes.contains(n1)){
-					activeNodes.add(n1);
-					node.announceFoundNode(n1);
-					
-					//Register as the RemoteNode.EventListener
-					n1.addEventListener(this);
-				}
-			
-			//Register as the RemoteNode.EventListener
-			n.addEventListener(this);
-		}
-		
-		//Are there nodes?
-		if(activeNodes.size() == 0)
-			System.out.println("No active nodes found. Starting as lone node.");
 	}
-	
-	/**
-	 * <p>This method performs a beacon alerting nodes in the network of this node's presence. </p>
-	 */
-	
 
 	/**
 	 * <p>Retrieves a copy of the known active nodes for the network.</p>
@@ -291,10 +210,89 @@ public final class LazyOverlayManager extends AbstractModule implements OverlayM
 	
 	@Override
 	public synchronized void link() {
+
+		activeNodes = new ArrayList<RemoteNode>();
+		
+		//Query seed nodes for node lists
+		System.out.println("Attempting to connect to seed nodes...");
+		
+		ArrayList<RemoteNode> seedNodes = new ArrayList<RemoteNode>();
+		String seedStrings[] = node.getConfigManager().getSetting(name, "seedNodes").split(",");
+		for(String s : seedStrings){
+			String seed[] = s.trim().split(":");
+			try{
+				seedNodes.add(new RemoteNode(node, seed[0], Integer.valueOf(seed[1])));
+			}
+			catch(UnknownHostException e){
+				//Ignore the seed
+				System.err.println("Bad seed hostname in configuration: " + s);
+			}
+		}
+		
+		for(int i = 0; i < seedNodes.size(); i++){
+			RemoteNode n = seedNodes.get(i);
+			
+			System.out.print("Attempting " + n.getIpAddress() + ":" + n.getListeningPort() + "...\t");
+			List<RemoteNode> l = null;
+			try{
+				l = n.getKnownNodes();
+			}
+			catch(ConnectException e){
+				//Unable to connect to seed node. Don't add it.
+				System.out.println("Failed");
+				continue;
+			} catch (IOException e) {
+				//Communication is not reliable. Ignore this node.
+				System.out.println("Failed");
+				continue;
+			} catch (NodeStateException e) {
+				switch(e.getState()){
+					case SHUTTING_DOWN:{
+						//Don't add it, it won't be useful
+						System.out.println("Failed");
+						break;
+					}
+					case RUNNING:
+					case UNKNOWN:{
+						//Unknown or running. Either way, track it.
+						activeNodes.add(n);
+						
+						//Register as the RemoteNode.EventListener
+						n.addEventListener(this);
+						
+						System.out.println("Partial Success");
+						break;
+					}
+				}
+				continue;
+			}
+			
+			//No exceptions, add the seed node
+			activeNodes.add(n);
+			System.out.println("Success");
+			
+			//Add the retrieved nodes
+			for(RemoteNode n1 : l)
+				if(!activeNodes.contains(n1)){
+					activeNodes.add(n1);
+					node.announceFoundNode(n1);
+					
+					//Register as the RemoteNode.EventListener
+					n1.addEventListener(this);
+				}
+			
+			//Register as the RemoteNode.EventListener
+			n.addEventListener(this);
+		}
+		
+		//Are there nodes?
+		if(activeNodes.size() == 0)
+			System.out.println("No active nodes found. Starting as lone node.");
 	}
 	
 	@Override
 	public synchronized void run(){
+		
 		if(future == null){
 			ConfigManager c = node.getConfigManager();
 			synchronized(c){
@@ -357,6 +355,7 @@ public final class LazyOverlayManager extends AbstractModule implements OverlayM
 		run();
 	}
 
+	//TODO: Graceful network removal should occur, but may not be necessary for the current lazy communication model
 	@Override
 	public synchronized void stop() {
 		synchronized(future){

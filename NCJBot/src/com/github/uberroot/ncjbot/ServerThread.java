@@ -4,6 +4,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 
+import com.github.uberroot.ncjbot.modapi.ConnectionFactory.Connection;
+
 /**
  * <p>This class handles all incoming requests. Once a session is established,
  * it is passed to a handler to run in its own thread.</p>
@@ -99,19 +101,14 @@ public final class ServerThread extends Thread{
 			}
 			
 			//Dispatch the incoming connection to a new session handler
+			Connection c = null;
 			try{
+				c = node.getConnectionFactory().registerConnection(clientSock);
 				ServerSessionHandler handler = new ServerSessionHandler(node, clientSock);
 				handler.start();
 			} catch(OutOfMemoryError e){//Autorecover from resource consumption
 				System.err.println("Unable to create thread for new connection");
-				try {
-					clientSock.close();
-				} catch (IOException e1) {
-					//This is bad...
-					e1.printStackTrace();
-					node.quit();
-				}
-				
+				c.release();
 			}
 		}
 	}

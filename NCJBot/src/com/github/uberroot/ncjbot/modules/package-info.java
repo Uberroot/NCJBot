@@ -1,5 +1,5 @@
 /**
- * <p>This package contains the interfaces and classes required to build modules, as well as several default modules.</p>
+ * <p>This package contains several default modules.</p>
  * 
  * @author Carter Waxman
  *

@@ -9,6 +9,8 @@ import com.github.uberroot.ncjbot.LocalNode;
 import com.github.uberroot.ncjbot.NodeStateException;
 import com.github.uberroot.ncjbot.RemoteNode;
 import com.github.uberroot.ncjbot.UnsafeObject;
+import com.github.uberroot.ncjbot.modapi.AbstractModule;
+import com.github.uberroot.ncjbot.modapi.Watchdog;
 
 /**
  * 

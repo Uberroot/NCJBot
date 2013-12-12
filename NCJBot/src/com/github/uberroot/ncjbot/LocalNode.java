@@ -37,19 +37,19 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	private NodeState state = NodeState.UNKNOWN;
 	
 	/**
-	 * <p>All of the non-vital modules.</p>
+	 * <p>All of the loaded modules.</p>
 	 */
 	private ArrayList<AbstractModule> modules;
+	
+	/**
+	 * <p>All modules implementing the Exclusive interface.</p>
+	 */
+	private Hashtable<Class<?>, AbstractModule> exclusives;
 	
 	/**
 	 * <p>The ConfigManager for this node.</p>
 	 */
 	private ConfigManager configManager;
-	
-	/**
-	 * <p>The OverlayManager for this node.</p>
-	 */
-	private AbstractModule netMgr;
 	
 	/**
 	 * <p>The port on which to listen for new connections.</p>
@@ -63,11 +63,6 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	private Hashtable<Long, LocalJob> jobs = new Hashtable<Long, LocalJob>();
 	
 	/**
-	 * <p>The Watchdog for monitoring remote nodes running locally initiated jobs.</p>
-	 */
-	private AbstractModule watchdog;
-	
-	/**
 	 * <p>The thread that handles incoming socket communication.</p>
 	 */
 	private ServerThread servThread;
@@ -76,11 +71,6 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 * <p>The list of ScheduledThreadPoolExecutor used for the various components.</p>
 	 */
 	private ArrayList<ScheduledThreadPoolExecutor> executors;
-	
-	/**
-	 * <p>The connection factory for this node.</p>
-	 */
-	private AbstractModule conFact;
 	
 	/**
 	 * <p>Entry point for the program. This loads the sole LocalNode instance.</p>
@@ -126,54 +116,55 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 			executors.add(new ScheduledThreadPoolExecutor(Integer.valueOf(s.trim())));
 		
 		//Load modules
+		exclusives = new Hashtable<Class<?>, AbstractModule>();
 		modules = new ArrayList<AbstractModule>();
 		String mods[] = configManager.getSetting("LocalNode", "modules").split(",");
 		for(String s : mods){
 			System.out.println("Loading Module " + s.trim() + "...");
+			
+			//Get and instantiate the module class
 			Class<? extends AbstractModule> c = (Class<? extends AbstractModule>) ClassLoader.getSystemClassLoader().loadClass(s.trim()).asSubclass(AbstractModule.class);
-			if(OverlayManager.class.isAssignableFrom(c)){
-				if(netMgr == null)
-					netMgr = c.getConstructor(LocalNode.class).newInstance(this);
-				else
-					throw new NCJBotException("Duplicate OverlayManager Modules Configured"); //TODO: This should be it's own exception subclass
+			AbstractModule mod = c.getConstructor(LocalNode.class).newInstance(this);
+			
+			//Determine highest level exclusive tag if possible
+			Class<?> interfaces[] = c.getInterfaces();
+			Class<?> exType = null;
+			for(int j = 0; j < interfaces.length; j++){
+				Class<?> i = interfaces[j];
+				if(Exclusive.class.isAssignableFrom(i)){
+					if(Exclusive.class == i)
+						break;
+					//Go up a level
+					exType = i;
+					j = -1;
+					interfaces = i.getInterfaces();
+				}
 			}
-			else if(Watchdog.class.isAssignableFrom(c)){
-				if(watchdog == null)
-					watchdog = c.getConstructor(LocalNode.class).newInstance(this);
+			
+			//Apply exclusive constraint
+			if(exType != null){
+				if(exclusives.get(exType) == null)
+					exclusives.put(exType, mod);
 				else
-					throw new NCJBotException("Duplicate Watchdog Modules Configured"); //TODO: This should be it's own exception subclass
+					throw new NCJBotException("Module " + c.getSimpleName() + " conflicts with Exclusive constraint of " + exType.getSimpleName() + " in " + exclusives.get(exType).getClass().getSimpleName());
 			}
-			else if(ConnectionFactory.class.isAssignableFrom(c)){
-				if(conFact == null)
-					conFact = c.getConstructor(LocalNode.class).newInstance(this);
-				else
-					throw new NCJBotException("Duplicate ConnectionFactory Modules Configured"); //TODO: This should be it's own exception subclass
-			}
-			else
-				modules.add(c.getConstructor(LocalNode.class).newInstance(this));
+			modules.add(mod);
 		}
 		
 		//Make sure the vital modules have been loaded
-		if(netMgr == null)
-			throw new NCJBotException("An OverlayManager has not been loaded"); //TODO: This should be it's own exception subclass
-		if(watchdog == null)
-			throw new NCJBotException("A Watchdog has not been loaded"); //TODO: This should be it's own exception subclass
-		if(conFact == null)
-			throw new NCJBotException("A ConnectionFactory has not been loaded"); //TODO: This should be it's own exception subclass
-		
-		
-		//Allow the modules to link
-		netMgr.link();
-		watchdog.link();
-		conFact.link();
+		Class<?> vitalTypes[] = {ConnectionFactory.class, OverlayManager.class, Watchdog.class};
+		for(Class<?> type : vitalTypes)
+			if(exclusives.get(type) == null)
+				throw new NCJBotException("A(n) " + type.getSimpleName() + " module has not been loaded");
+
 		for(AbstractModule m : modules)
 			m.link();
 		
 		//Start the connection factory
-		conFact.run();
+		((AbstractModule)getConnectionFactory()).run();
 		
 		//Start the watchdog
-		watchdog.run();
+		((AbstractModule)getWatchdog()).run();
 		
 		//Open socket and respond to requests
 		//TODO: This access pattern should change. The socket should be created outside of the thread that queries it.
@@ -197,7 +188,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 			state = NodeState.RUNNING;
 			
 			//Join the network
-			netMgr.run();
+			((AbstractModule)getOverlayManager()).run();
 		}
 		else{
 			System.err.print("Unable to start server and join network. Please adjust your configuration.\n");
@@ -206,7 +197,8 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		
 		//Start the non-vital modules
 		for(AbstractModule m : modules)
-			m.run();
+			if(!exclusives.contains(m))
+				m.run();
 	}
 	
 	/**
@@ -248,9 +240,9 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	public void quit(){
 		if(servThread != null)
 			servThread.kill();
-		netMgr.stop();
-		watchdog.stop();
-		conFact.run();
+		((AbstractModule)getOverlayManager()).stop();
+		((AbstractModule)getWatchdog()).stop();
+		((AbstractModule)getConnectionFactory()).stop();
 		for(AbstractModule m : modules)
 			m.stop();
 		for(ScheduledThreadPoolExecutor e : executors)
@@ -298,8 +290,8 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 */
 	//TODO:This may be removed in favor of direct communication.
 	public boolean addDiscoveredNode(RemoteNode rn){
-		((Watchdog)watchdog).beaconed(rn);
-		return ((OverlayManager) netMgr).addDiscoveredNode(rn);
+		getWatchdog().beaconed(rn);
+		return getOverlayManager().addDiscoveredNode(rn);
 	}
 	
 	/**
@@ -318,7 +310,7 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	public long startJob(String classPath, String className, RemoteNode source, String remoteTid, File initData, boolean cleanup){
 		JobEnvironment jobThread = null;
 		try {
-			jobThread = new JobEnvironment(this, className, new File(classPath), source, remoteTid, initData, (Watchdog)watchdog, cleanup, new JobEnvironment.JobStateListener(){
+			jobThread = new JobEnvironment(this, className, new File(classPath), source, remoteTid, initData, getWatchdog(), cleanup, new JobEnvironment.JobStateListener(){
 				@Override
 				public void jobLoaded(JobEnvironment wrapper, LocalJob job) {
 					jobs.put(wrapper.getId(), job);
@@ -393,7 +385,11 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 * @return The running OverlayManager for this node.
 	 */
 	public OverlayManager getOverlayManager(){
-		return (OverlayManager)netMgr;
+		for(AbstractModule m : modules){
+			if(m instanceof OverlayManager)
+				return (OverlayManager)m;
+		}
+		return null; //This should never happen because of the controlled load sequence
 	}
 	
 	/**
@@ -402,7 +398,11 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 * @return The running Watchdog for this node.
 	 */
 	public Watchdog getWatchdog(){
-		return (Watchdog)watchdog;
+		for(AbstractModule m : modules){
+			if(m instanceof Watchdog)
+				return (Watchdog)m;
+		}
+		return null; //This should never happen because of the controlled load sequence
 	}
 	
 	/**
@@ -420,7 +420,11 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 * @return the current connection factory.
 	 */
 	public ConnectionFactory getConnectionFactory(){
-		return (ConnectionFactory)conFact;
+		for(AbstractModule m : modules){
+			if(m instanceof ConnectionFactory)
+				return (ConnectionFactory)m;
+		}
+		return null; //This should never happen because of the controlled load sequence
 	}
 	
 	/**

@@ -12,7 +12,7 @@ import com.github.uberroot.ncjbot.UnsafeObject;
  * @author Carter Waxman
  *
  */
-public interface OverlayManager extends UnsafeObject<com.github.uberroot.ncjbot.api.OverlayManager>{
+public interface OverlayManager extends Exclusive<OverlayManager>, UnsafeObject<com.github.uberroot.ncjbot.api.OverlayManager>{
 	/**
 	 * <p>Retrieves a copy of the known active nodes for the network.</p>
 	 * 

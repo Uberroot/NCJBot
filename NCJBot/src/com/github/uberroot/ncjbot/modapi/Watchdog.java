@@ -11,7 +11,7 @@ import com.github.uberroot.ncjbot.UnsafeObject;
  */
 //TODO: The beacon and receiver may be split into separate modules
 //TODO: This interface may not be needed with the proper system hooks
-public interface Watchdog extends UnsafeObject<com.github.uberroot.ncjbot.api.Watchdog> {
+public interface Watchdog extends Exclusive<Watchdog>, UnsafeObject<com.github.uberroot.ncjbot.api.Watchdog> {
 	
 	/**
 	 * <p>Registers a beacon to send to a RemoteNode. The first registration will add the beacon,

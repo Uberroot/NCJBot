@@ -12,7 +12,7 @@ import com.github.uberroot.ncjbot.RemoteNode;
  * @author Carter Waxman
  *
  */
-public interface ConnectionFactory {
+public interface ConnectionFactory extends Exclusive<ConnectionFactory>{
 	
 	/**
 	 * <p>This interface defines the functionality for utilizing a connection with a RemoteNode. Connections use the concept

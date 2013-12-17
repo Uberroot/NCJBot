@@ -14,8 +14,8 @@ import com.github.uberroot.ncjbot.LocalNode;
 import com.github.uberroot.ncjbot.NodeState;
 import com.github.uberroot.ncjbot.NodeStateException;
 import com.github.uberroot.ncjbot.RemoteNode;
-import com.github.uberroot.ncjbot.modapi.AbstractModule;
 import com.github.uberroot.ncjbot.modapi.OverlayManager;
+import com.github.uberroot.ncjbot.modapi.RunningModule;
 
 /**
  * <p>This class keeps track of other nodes within the network. The nodes within a network only know of each
@@ -63,7 +63,7 @@ import com.github.uberroot.ncjbot.modapi.OverlayManager;
  */
 //TODO: This should be a singleton class
 //TODO: There should be a method for internal removal of nodes
-public final class LazyOverlayManager extends AbstractModule implements OverlayManager, RemoteNode.EventListener{
+public final class LazyOverlayManager extends RunningModule implements OverlayManager, RemoteNode.EventListener{
 	/**
 	 * <p>The list of all nodes known to be active on the network.</p>
 	 */
@@ -296,7 +296,7 @@ public final class LazyOverlayManager extends AbstractModule implements OverlayM
 		if(future == null){
 			ConfigManager c = node.getConfigManager();
 			synchronized(c){
-				Long interval = Long.valueOf(c.getSetting(name, "interval"));
+				Long interval = c.getSetting(name, "interval", long.class);
 				String unit = c.getSetting(name, "intervalUnit");
 				future = executor.scheduleAtFixedRate(new Runnable(){
 					@Override

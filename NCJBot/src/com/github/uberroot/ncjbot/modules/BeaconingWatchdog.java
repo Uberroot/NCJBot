@@ -8,8 +8,7 @@ import java.util.concurrent.TimeUnit;
 import com.github.uberroot.ncjbot.LocalNode;
 import com.github.uberroot.ncjbot.NodeStateException;
 import com.github.uberroot.ncjbot.RemoteNode;
-import com.github.uberroot.ncjbot.UnsafeObject;
-import com.github.uberroot.ncjbot.modapi.AbstractModule;
+import com.github.uberroot.ncjbot.modapi.RunningModule;
 import com.github.uberroot.ncjbot.modapi.Watchdog;
 
 /**
@@ -28,7 +27,7 @@ import com.github.uberroot.ncjbot.modapi.Watchdog;
  *
  */
 //TODO: It should be possible for the Watchdog to listen for RemoteNodes being added and removed from the OverlayManager
-public final class BeaconingWatchdog extends AbstractModule implements Watchdog{
+public final class BeaconingWatchdog extends RunningModule implements Watchdog{
 	/**
 	 * <p>The ScheduledFuture for handling the beacon timer</p>
 	 */
@@ -53,11 +52,6 @@ public final class BeaconingWatchdog extends AbstractModule implements Watchdog{
 	 * <p>A table of the retain counts for nodes that should be beaconing, keyed by node.</p>
 	 */
 	private final Hashtable<RemoteNode, Integer> exRetCount;
-	
-	/**
-	 * <p>Whether the watchdog is running.</p>
-	 */
-	private boolean running;
 	
 	/**
 	 * <p>Instantiates a new Watchdog.</p>

@@ -132,17 +132,5 @@ public class BasicConnector extends AbstractModule implements ConnectionFactory 
 	public void link() {}
 
 	@Override
-	public void run() {}
-
-	@Override
-	public void pause() {}
-
-	@Override
-	public void resume() {}
-	
-	@Override
-	public void stop() {}
-
-	@Override
 	public void unlink() {}
 }

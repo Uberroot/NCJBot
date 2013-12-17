@@ -6,9 +6,10 @@ A peer-to-peer distributed computing framework for Java.
 Key features include:
 * Simplicity to Connect. Just provide a hostname and port of another node on the network.
 * Simplicity to Code. Write worker code, write dispatcher code, run!
-* Automatic Failover.
+* Automatic Worker Failover.
 * Automatic Peer Management.
 * GPGPU Support (CUDA and OpenCL).
+* A Modular Framework for Adding Features to the Platform.
 
 Features to look forward to:
 * Caching.
@@ -19,6 +20,7 @@ Features to look forward to:
 * A Curses-like UI.
 * Resource Quotas.
 * Severice Oriented Supports.
+* Hot-swappable Modules.
 
 For information on using NCJBot, see the <a href="https://github.com/Uberroot/NCJBot/wiki">wiki</a>.
 

@@ -174,11 +174,44 @@ public final class ConfigManager {
 	 * @param key The key for the setting.
 	 * @return The setting for the given section->key pair, or null if the setting does not exist.
 	 */
+	@SuppressWarnings("unchecked")
 	public synchronized String getSetting(String section, String key){
 		Hashtable<String, String> s = configuration.get(section);
 		if(s == null)
 			return null;
 		return s.get(key);
+	}
+	
+	/**
+	 * <p>Gets a setting from the configuration using the given section->key pair and parses it as the given type.</p>
+	 * 
+	 * @param <T> type The type of data contained in the setting. This must be a java primitive type.
+	 * @param section The section that contains the setting.
+	 * @param key The key for the setting.
+	 * @param type The type of data contained in the setting. This must match with T.
+	 * @return The setting for the given section->key pair, or null if the setting does not exist.
+	 */
+	@SuppressWarnings("unchecked")
+	public synchronized <T> T getSetting(String section, String key, Class<T> type){
+		Hashtable<String, String> s = configuration.get(section);
+		if(s == null)
+			return null;
+		
+		if(type == byte.class)
+			return (T)Byte.valueOf(s.get(key));
+		if(type == short.class)
+			return (T)Short.valueOf(s.get(key));
+		if(type == int.class)
+			return (T)Integer.valueOf(s.get(key));
+		if(type == long.class)
+			return (T)Long.valueOf(s.get(key));
+		if(type == float.class)
+			return (T)Float.valueOf(s.get(key));
+		if(type == double.class)
+			return (T)Double.valueOf(s.get(key));
+		if(type == boolean.class)
+			return (T)Boolean.valueOf(s.get(key));
+		throw new ClassCastException(type.getSimpleName() + " is an invalid parameter type");
 	}
 	
 	/**
@@ -188,7 +221,7 @@ public final class ConfigManager {
 	 * @param key The key for the setting.
 	 * @param value The new value for the setting.
 	 */
-	public synchronized void setSetting(String section, String key, String value){
+	public synchronized void setSetting(String section, String key, Object value){
 		Hashtable<String, String> sectionTable = configuration.get(section);
 		
 		//Make a new section if needed
@@ -201,20 +234,20 @@ public final class ConfigManager {
 		String old = sectionTable.get(key);
 		
 		//Set the setting
-		sectionTable.put(key, value);
+		sectionTable.put(key, value.toString());
 		
 		if(!value.equals(old)){
 			//Notify full listeners
 			Vector<EventListener> temp = new Vector<EventListener>(fullListeners);
 			for(EventListener e : temp)
-				e.settingChanged(section, key, value);
+				e.settingChanged(section, key, value.toString());
 			
 			//Notify section listeners
 			temp = sectionListeners.get(section);
 			if(temp != null){
 				temp = new Vector<EventListener>(temp);
 				for(EventListener e : temp)
-					e.settingChanged(section, key, value);
+					e.settingChanged(section, key, value.toString());
 			}
 			
 			//Notify key listeners
@@ -224,7 +257,7 @@ public final class ConfigManager {
 				if(temp != null){
 					temp = new Vector<EventListener>(temp);
 					for(EventListener e : temp)
-						e.settingChanged(section, key, value);
+						e.settingChanged(section, key, value.toString());
 				}
 			}
 		}

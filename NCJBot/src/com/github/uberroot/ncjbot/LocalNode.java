@@ -2,6 +2,9 @@ package com.github.uberroot.ncjbot;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.Set;
@@ -12,8 +15,8 @@ import com.github.uberroot.ncjbot.api.JobEnvironment;
 import com.github.uberroot.ncjbot.modapi.*;
 
 /**
- * <p>This is the core of the NCJBot. It is responsible for connecting to the network,
- * managing the various supporting threads, and shutting down the node / gracefully disconnecting from the network.</p>
+ * <p>This is the core of the NCJBot. It is responsible for loading and handling all modules and components
+ * of NCJBot.</p>
  * 
  * <p>Additionally, this class is responsible for starting, monitoring, and signaling jobs running on this node. 
  * For more on the loading and running of individual jobs, see {@link JobEnvironment}.</p>
@@ -104,8 +107,9 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 * @throws IllegalAccessException 
 	 * @throws InstantiationException 
 	 * @throws NCJBotException 
+	 * @throws URISyntaxException 
 	 */
-	private LocalNode() throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, NCJBotException{
+	private LocalNode() throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, NCJBotException, URISyntaxException{
 		//Load the configuration
 		configManager = new ConfigManager(this, new File("config.properties"));
 
@@ -119,11 +123,12 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		exclusives = new Hashtable<Class<?>, AbstractModule>();
 		modules = new ArrayList<AbstractModule>();
 		String mods[] = configManager.getSetting("LocalNode", "modules").split(",");
+		URLClassLoader loader = new URLClassLoader(new URL[]{new File(configManager.getSetting("LocalNode", "modulePath")).toURI().toURL()}, ClassLoader.getSystemClassLoader());
 		for(String s : mods){
 			System.out.println("Loading Module " + s.trim() + "...");
 			
 			//Get and instantiate the module class
-			Class<? extends AbstractModule> c = (Class<? extends AbstractModule>) ClassLoader.getSystemClassLoader().loadClass(s.trim()).asSubclass(AbstractModule.class);
+			Class<? extends AbstractModule> c = (Class<? extends AbstractModule>) loader.loadClass(s.trim()).asSubclass(AbstractModule.class);
 			AbstractModule mod = c.getConstructor(LocalNode.class).newInstance(this);
 			
 			//Determine highest level exclusive tag if possible
@@ -145,11 +150,14 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 			if(exType != null){
 				if(exclusives.get(exType) == null)
 					exclusives.put(exType, mod);
-				else
+				else{
+					loader.close();
 					throw new NCJBotException("Module " + c.getSimpleName() + " conflicts with Exclusive constraint of " + exType.getSimpleName() + " in " + exclusives.get(exType).getClass().getSimpleName());
+				}
 			}
 			modules.add(mod);
 		}
+		loader.close();
 		
 		//Make sure the vital modules have been loaded
 		Class<?> vitalTypes[] = {ConnectionFactory.class, OverlayManager.class, Watchdog.class};
@@ -161,16 +169,18 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 			m.link();
 		
 		//Start the connection factory
-		((AbstractModule)getConnectionFactory()).run();
+		if(RunningModule.class.isAssignableFrom(getConnectionFactory().getClass()))
+			((RunningModule)getConnectionFactory()).run();
 		
 		//Start the watchdog
-		((AbstractModule)getWatchdog()).run();
+		if(RunningModule.class.isAssignableFrom(getWatchdog().getClass()))
+			((RunningModule)getWatchdog()).run();
 		
 		//Open socket and respond to requests
 		//TODO: This access pattern should change. The socket should be created outside of the thread that queries it.
-		listenPort = Integer.valueOf(configManager.getSetting("LocalNode", "minListenPort"));
-		int maxPort = Integer.valueOf(configManager.getSetting("LocalNode", "maxListenPort"));
-		int portIncrement = Integer.valueOf(configManager.getSetting("LocalNode", "listenPortIncrement"));
+		listenPort = configManager.getSetting("LocalNode", "minListenPort", int.class);
+		int maxPort = configManager.getSetting("LocalNode", "maxListenPort", int.class);
+		int portIncrement = configManager.getSetting("LocalNode", "listenPortIncrement", int.class);
 		while(servThread == null && listenPort <= maxPort){
 			try{
 				servThread = new ServerThread(this, listenPort);
@@ -188,7 +198,8 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 			state = NodeState.RUNNING;
 			
 			//Join the network
-			((AbstractModule)getOverlayManager()).run();
+			if(RunningModule.class.isAssignableFrom(getOverlayManager().getClass()))
+				((RunningModule)getOverlayManager()).run();
 		}
 		else{
 			System.err.print("Unable to start server and join network. Please adjust your configuration.\n");
@@ -197,8 +208,9 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		
 		//Start the non-vital modules
 		for(AbstractModule m : modules)
-			if(!exclusives.contains(m))
-				m.run();
+			if(!exclusives.contains(m)) //TODO: This assumes vitals and exclusives are the same
+				if(RunningModule.class.isAssignableFrom(m.getClass()))
+					((RunningModule)m).run();
 	}
 	
 	/**
@@ -240,11 +252,10 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	public void quit(){
 		if(servThread != null)
 			servThread.kill();
-		((AbstractModule)getOverlayManager()).stop();
-		((AbstractModule)getWatchdog()).stop();
-		((AbstractModule)getConnectionFactory()).stop();
+		
 		for(AbstractModule m : modules)
-			m.stop();
+			if(RunningModule.class.isAssignableFrom(m.getClass()))
+				((RunningModule)m).stop();
 		for(ScheduledThreadPoolExecutor e : executors)
 			e.shutdown();
 		System.exit(0);

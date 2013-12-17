@@ -9,9 +9,10 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.Set;
 
+import com.github.uberroot.ncjbot.ConfigManager;
 import com.github.uberroot.ncjbot.LocalNode;
 import com.github.uberroot.ncjbot.RemoteNode;
-import com.github.uberroot.ncjbot.modapi.AbstractModule;
+import com.github.uberroot.ncjbot.modapi.RunningModule;
 
 /**
  * <p>A simple CLI that supports basic operations on the local node.</p>
@@ -31,7 +32,7 @@ import com.github.uberroot.ncjbot.modapi.AbstractModule;
  * @author Carter Waxman
  *
  */
-public class TestCLI extends AbstractModule {
+public class TestCLI extends RunningModule {
 	private InputStream cin;
 	private PrintStream cout;
 	private PrintStream cerr;
@@ -58,8 +59,9 @@ public class TestCLI extends AbstractModule {
 		});
 		
 		//Take control of output streams
-		System.setOut(new TaggedStream(cout, Boolean.valueOf(node.getConfigManager().getSetting(name, "tagOut"))));
-		System.setErr(new TaggedStream(cerr, Boolean.valueOf(node.getConfigManager().getSetting(name, "tagErr"))));
+		ConfigManager c = node.getConfigManager();
+		System.setOut(new TaggedStream(cout, c.getSetting(name, "tagOut", boolean.class)));
+		System.setErr(new TaggedStream(cerr, c.getSetting(name, "tagErr", boolean.class)));
 	}
 
 	@Override

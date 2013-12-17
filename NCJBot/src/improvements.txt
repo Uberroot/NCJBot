@@ -1,6 +1,5 @@
 CHANGE: Complete redesign of communication protocol (binary instead of text-based)
 ADD: Remote (worker) exception reporting
-CHANGE: Move console commanding to its own class (and possibly its own thread).
 CHANGE: Modify OverlayManager operation to stagger broadcasts of network updates
 	-The entire initialization process needs to be re-examined
 CHANGE: sendJob() so that it does not require the owner thread id as a parameter
@@ -25,9 +24,7 @@ ADD: SecurityManager that operates at the thread level
 ADD: (other access controls... needs to be researched)
 ADD: Resource allocation monitoring (to cleanup after failures, possibly implemented using security manager)
  - Java 7 might take care of much of this
-ADD: Node configuration via file
 ADD: GUI to segment commanding, status, and individual messages from LocalNodeJobs
-CHANGE: Take control of stdin/stdout/stderr to prevent LocalNodeJobs from accessing these streams directly
 CHANGE: methods to prevent spoofing
 ADD: Ability to support service providers
 	-Could allow jobs to request anonymous providers for various services
@@ -58,7 +55,6 @@ CHANGE: Identity is based on port, which may change when the server restarts. Co
 	- Identity to be based on unique IDs in the future (node picks ID, tries it on the network, picks another if it already exists)
 CHANGE: Watchdog operation should be completely automatic, not relying on source job activation for listening
 ADD: Create an abstraction to allow for anonymous remote nodes (where ip / port / identity aren't revealed). This would allow for automatic correction on connection failures.
-ADD: Executors
 ADD: fork/join framework implementation
 ADD: JNI Optimizations / supports
 ADD: RMI (maybe not, depending on performance)
@@ -71,7 +67,7 @@ ADD: Connection Multiplexing
 ADD: Supports for non-hierarchical distribution / persistent service-type jobs
 ADD: Job state tracking
 CHANGE: Log outputs from classes under separate tags / streams
-ADD: ConnectionManager class for handling low-level socket code / multiplexing
+CHANGE: ConnectionManager class for handling low-level socket code / multiplexing
  - Should include sister class for performing atomic actions over the network (NetworkSequence + NetworkOperation classes?)
 CHANGE: Rings of security could be implemented using inherited interfaces with ever increasing functionality
 ADD: Ability to move dispatchers between nodes on command and on failure
@@ -81,7 +77,6 @@ ADD: Modules for each function
  - System hooks
  - Inter-Module hooks
  - Chained hooks + out of order hooks
-CHANGE: Each component could have its own dedicated thread pool, as well as access to a shared thread pool when needed
 
 Configurables to add:
 seeds for initial connections

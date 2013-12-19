@@ -1,8 +1,6 @@
 package com.github.uberroot.ncjbot;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
@@ -55,20 +53,9 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	private ConfigManager configManager;
 	
 	/**
-	 * <p>The port on which to listen for new connections.</p>
-	 */
-	//TODO: This should be moved to ServerThread
-	private int listenPort;
-	
-	/**
 	 * <p>A Hashtable of all running jobs, keyed by thread id.</p>
 	 */
 	private Hashtable<Long, LocalJob> jobs = new Hashtable<Long, LocalJob>();
-	
-	/**
-	 * <p>The thread that handles incoming socket communication.</p>
-	 */
-	private ServerThread servThread;
 	
 	/**
 	 * <p>The list of ScheduledThreadPoolExecutor used for the various components.</p>
@@ -97,19 +84,9 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	/**
 	 * <p>Initializes the node. This method initializes supporting threads for the node and runs the
 	 * command line interface for utilizing the node.</p>
-	 * 
-	 * @throws IOException
-	 * @throws ClassNotFoundException 
-	 * @throws SecurityException 
-	 * @throws NoSuchMethodException 
-	 * @throws InvocationTargetException 
-	 * @throws IllegalArgumentException 
-	 * @throws IllegalAccessException 
-	 * @throws InstantiationException 
-	 * @throws NCJBotException 
-	 * @throws URISyntaxException 
+	 * @throws Exception 
 	 */
-	private LocalNode() throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, NCJBotException, URISyntaxException{
+	private LocalNode() throws Exception{
 		//Load the configuration
 		configManager = new ConfigManager(this, new File("config.properties"));
 
@@ -170,92 +147,42 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		
 		//Start the connection factory
 		if(RunningModule.class.isAssignableFrom(getConnectionFactory().getClass()))
-			((RunningModule)getConnectionFactory()).run();
+			((RunningModule)getConnectionFactory()).start();
 		
 		//Start the watchdog
 		if(RunningModule.class.isAssignableFrom(getWatchdog().getClass()))
-			((RunningModule)getWatchdog()).run();
+			((RunningModule)getWatchdog()).start();
 		
 		//Open socket and respond to requests
-		//TODO: This access pattern should change. The socket should be created outside of the thread that queries it.
-		listenPort = configManager.getSetting("LocalNode", "minListenPort", int.class);
-		int maxPort = configManager.getSetting("LocalNode", "maxListenPort", int.class);
-		int portIncrement = configManager.getSetting("LocalNode", "listenPortIncrement", int.class);
-		while(servThread == null && listenPort <= maxPort){
-			try{
-				servThread = new ServerThread(this, listenPort);
-				servThread.start();
-			} catch(IOException e){
-				servThread = null;
-				listenPort += portIncrement;
-				System.err.println(e.getMessage());
-			}
-		}
+		if(RunningModule.class.isAssignableFrom(getServer().getClass()))
+			((RunningModule)getServer()).start();
 		
-		//Join the network if ready
-		if(servThread != null){
-			//Set the status to ready
-			state = NodeState.RUNNING;
-			
-			//Join the network
-			if(RunningModule.class.isAssignableFrom(getOverlayManager().getClass()))
-				((RunningModule)getOverlayManager()).run();
-		}
-		else{
-			System.err.print("Unable to start server and join network. Please adjust your configuration.\n");
-			quit();
-		}
+		//Set the status to ready
+		state = NodeState.RUNNING;
+		
+		//Join the network
+		if(RunningModule.class.isAssignableFrom(getOverlayManager().getClass()))
+			((RunningModule)getOverlayManager()).start();
 		
 		//Start the non-vital modules
 		for(AbstractModule m : modules)
 			if(!exclusives.contains(m)) //TODO: This assumes vitals and exclusives are the same
 				if(RunningModule.class.isAssignableFrom(m.getClass()))
-					((RunningModule)m).run();
-	}
-	
-	/**
-	 * <p>Attempts to stop the server.</p>
-	 * 
-	 * @deprecated This is here temporarily to aid transition to modules
-	 * @return True if the server was already running and could be stopped, false if it was not running and could not be stopped.
-	 */
-	public boolean stopServer(){
-		if(servThread != null){
-			servThread.kill();
-			servThread = null;
-			return true;
-		}
-		else
-			return false;
-	}
-	
-	/**
-	 * <p>Attempts to start the server.</p>
-	 * 
-	 * @deprecated This is here temporarily to aid transition to modules
-	 * @return True if the server was not already running and could be started, false if it was running and could not be started.
-	 * @throws IOException 
-	 */
-	public boolean startServer() throws IOException{
-		if(servThread != null && servThread.isRunning()){
-			System.err.println("The server is already running");
-			return false;
-		}
-		servThread = new ServerThread(this, listenPort);
-		servThread.start();
-		return true;
+					((RunningModule)m).start();
 	}
 	
 	/**
 	 * Closes all connections and threads and allows the node to gracefully quit.
 	 */
+	//TODO: This should be a shutdown hook
 	public void quit(){
-		if(servThread != null)
-			servThread.kill();
-		
 		for(AbstractModule m : modules)
 			if(RunningModule.class.isAssignableFrom(m.getClass()))
-				((RunningModule)m).stop();
+				try {
+					((RunningModule)m).stop();
+				} catch (Exception e1) {
+					e1.printStackTrace();
+				}
 		for(ScheduledThreadPoolExecutor e : executors)
 			e.shutdown();
 		System.exit(0);
@@ -268,29 +195,6 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 	 */
 	public NodeState getState(){
 		return state;
-	}
-	
-	/**
-	 * <p>Gets the current port on which the server socket should listen.</p>
-	 * 
-	 * @deprecated This will be moved to a different class
-	 * @return The current port on which the server socket should listen.
-	 */
-	//TODO: This should be moved to ServerThread.
-	//TODO: A distinction should be made between the current port and the configured port.
-	public int getListenPort(){
-		return listenPort;
-	}
-	
-	/**
-	 * <p>Sets a new port to use for incoming connections. The server will need to be restarted to apply this port setting.</p>
-	 * 
-	 * @deprecated This will be moved to a different class
-	 * 
-	 * @param port The new listen port
-	 */
-	public void setListenPort(int port){
-		listenPort = port;
 	}
 	
 	/**
@@ -434,6 +338,19 @@ public final class LocalNode implements UnsafeObject<com.github.uberroot.ncjbot.
 		for(AbstractModule m : modules){
 			if(m instanceof ConnectionFactory)
 				return (ConnectionFactory)m;
+		}
+		return null; //This should never happen because of the controlled load sequence
+	}
+	
+	/**
+	 * <p>Gets the current server.</p>
+	 * 
+	 * @return the current server.
+	 */
+	public Server getServer(){
+		for(AbstractModule m : modules){
+			if(m instanceof Server)
+				return (Server)m;
 		}
 		return null; //This should never happen because of the controlled load sequence
 	}

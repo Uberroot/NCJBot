@@ -33,16 +33,6 @@ public final class LocalNode {
 	}
 	
 	/**
-	 * <p>Gets the current port on which the server socket should listen.</p>
-	 * 
-	 * @deprecated This should not be accessable to non-privalged jobs as it breaks the abstraction between the network and job.
-	 * @return The current port on which the server socket should listen.
-	 */
-	public int getListenPort(){
-		return node.getListenPort();
-	}
-	
-	/**
 	 * <p>Retrieves the running OverlayManager for this node.</p>
 	 * 
 	 * @return The running OverlayManager for this node.

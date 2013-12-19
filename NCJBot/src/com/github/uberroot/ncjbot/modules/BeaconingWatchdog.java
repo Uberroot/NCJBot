@@ -207,7 +207,7 @@ public final class BeaconingWatchdog extends RunningModule implements Watchdog{
 	 * <p>Runs the Watchdog, updating and running the necessary checks every second.</p>
 	 */
 	@Override
-	public synchronized void run(){
+	public synchronized void doStart(){
 		if(future == null)
 			future = executor.scheduleAtFixedRate(new Runnable(){
 	
@@ -227,17 +227,17 @@ public final class BeaconingWatchdog extends RunningModule implements Watchdog{
 	}
 
 	@Override
-	public synchronized void pause() {
-		stop();
+	public synchronized void doPause() {
+		doStop();
 	}
 
 	@Override
-	public synchronized void resume() {
-		run();
+	public synchronized void doResume() {
+		doStart();
 	}
 
 	@Override
-	public synchronized void stop() {
+	public synchronized void doStop() {
 		synchronized(future){
 			if(future != null)
 				future.cancel(false);

@@ -13,6 +13,7 @@ import com.github.uberroot.ncjbot.ConfigManager;
 import com.github.uberroot.ncjbot.LocalNode;
 import com.github.uberroot.ncjbot.RemoteNode;
 import com.github.uberroot.ncjbot.modapi.RunningModule;
+import com.github.uberroot.ncjbot.modapi.Server;
 
 /**
  * <p>A simple CLI that supports basic operations on the local node.</p>
@@ -65,7 +66,7 @@ public class TestCLI extends RunningModule {
 	}
 
 	@Override
-	public void run() {
+	public void doStart() {
 		//TODO: Look into lanterna (https://code.google.com/p/lanterna/) for creating the console. This should allow switching between panels and I/O splitting without a GUI
 		scan = new Scanner(cin);
 
@@ -95,17 +96,30 @@ public class TestCLI extends RunningModule {
 					}
 					//TODO: Gracefully disconnect.
 					else if(command.equalsIgnoreCase("STOP SERVER")){
-						if(!node.stopServer())
-							cerr.println("The server is not running");
+						Server s = node.getServer();
+						synchronized(s){
+							if(s.getState() != RunnerState.RUNNING)
+								cerr.println("The server is not running");
+							else
+								try {
+									s.stop();
+								} catch (Exception e) {
+									cerr.println(e.getMessage());
+								}
+						}
 					}
 					//TODO: Should this force a presence announcement / node info update?
 					else if(command.equalsIgnoreCase("START SERVER")){
-						try{
-							if(!node.startServer())
-								cout.println("Unable to start server. Did you forget to stop it?");
-						}
-						catch(IOException e){
-							cerr.println(e.getMessage());
+						Server s = node.getServer();
+						synchronized(s){
+							if(s.getState() != RunnerState.STOPPED && s.getState() != RunnerState.NEVER_RUN)
+								cerr.println("Unable to start server. Did you forget to stop it?");
+							else
+								try {
+									s.start();
+								} catch (Exception e) {
+									cerr.println(e.getMessage());
+								}
 						}
 					}
 					else if(command.equalsIgnoreCase("QUIT")){
@@ -115,14 +129,14 @@ public class TestCLI extends RunningModule {
 					//TODO: A transitional phase should occur when changing ports to finish running jobs before restarting and accepting new jobs
 					else if(command.equalsIgnoreCase("SET PORT")){
 						cout.print("Enter the new port (restart server to apply): ");
-						node.setListenPort(scan.nextInt());
+						node.getServer().setPort(scan.nextInt(), false);
 						scan.nextLine();
 					}
 					else if(command.equalsIgnoreCase("START JOB")){
 						cout.println("Enter path to class");
 						File path = new File(scan.nextLine().trim());
 						try {
-							node.startJob(path.getParent(), path.getName().replaceFirst("\\.class$", ""), new RemoteNode(node, "127.0.0.1", node.getListenPort()), null, null, false);
+							node.startJob(path.getParent(), path.getName().replaceFirst("\\.class$", ""), new RemoteNode(node, "127.0.0.1", node.getServer().getCurrentPort()), null, null, false);
 						} catch (UnknownHostException e) {
 							//THIS SHOULD NOT HAPPEN
 							cout.println("Something happened");
@@ -138,18 +152,17 @@ public class TestCLI extends RunningModule {
 	}
 
 	@Override
-	public synchronized void pause() {
+	public synchronized void doPause() {
 		pause = true;
 	}
 
 	@Override
-	public synchronized void resume() {
+	public synchronized void doResume() {
 		pause = false;
 	}
 
 	@Override
-	public synchronized void stop() {
-		cout.println("stopping");
+	public synchronized void doStop() {
 		scan.close();
 	}
 

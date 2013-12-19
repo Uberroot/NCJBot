@@ -154,7 +154,7 @@ public final class LazyOverlayManager extends RunningModule implements OverlayMa
 		if(ans.size() == 0){
 			RemoteNode self = null;
 			try {
-				self = new RemoteNode(node, "127.0.0.1", node.getListenPort());
+				self = new RemoteNode(node, "127.0.0.1", node.getServer().getCurrentPort());
 			} catch (UnknownHostException e) {
 				//THIS WILL NEVER HAPPEN
 				node.quit();
@@ -167,7 +167,7 @@ public final class LazyOverlayManager extends RunningModule implements OverlayMa
 				if(i >= ans.size()){
 					i = -1;
 					try {
-						ret.add(new RemoteNode(node, "127.0.0.1", node.getListenPort()));
+						ret.add(new RemoteNode(node, "127.0.0.1", node.getServer().getCurrentPort()));
 					} catch (UnknownHostException e) {
 						//THIS WILL NEVER HAPPEN
 						node.quit();
@@ -291,7 +291,7 @@ public final class LazyOverlayManager extends RunningModule implements OverlayMa
 	}
 	
 	@Override
-	public synchronized void run(){
+	public synchronized void doStart(){
 		
 		if(future == null){
 			ConfigManager c = node.getConfigManager();
@@ -346,18 +346,18 @@ public final class LazyOverlayManager extends RunningModule implements OverlayMa
 	}
 
 	@Override
-	public synchronized void pause() {
-		stop();
+	public synchronized void doPause() {
+		doStop();
 	}
 
 	@Override
-	public synchronized void resume() {
-		run();
+	public synchronized void doResume() {
+		doStart();
 	}
 
 	//TODO: Graceful network removal should occur, but may not be necessary for the current lazy communication model
 	@Override
-	public synchronized void stop() {
+	public synchronized void doStop() {
 		synchronized(future){
 			if(future != null)
 				future.cancel(false);

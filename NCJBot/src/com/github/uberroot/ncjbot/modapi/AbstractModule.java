@@ -41,5 +41,4 @@ public abstract class AbstractModule{
 	 * <p>Called when the module needs to remove the listeners that it set in {@link AbstractModule#link()}.</p>
 	 */
 	public abstract void unlink();
-
 }

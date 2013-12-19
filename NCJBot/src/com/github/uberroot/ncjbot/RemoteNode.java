@@ -300,7 +300,7 @@ public final class RemoteNode {
 				c.read(buffer); //What did you find?
 				
 				//Send the listening port for this node to allow node identification
-				c.write((node.getListenPort() + "\n").getBytes());
+				c.write((node.getServer().getCurrentPort() + "\n").getBytes());
 				
 				//Send the remote(parent) process id, local process id
 				c.write((destTid + "\n").getBytes());
@@ -371,7 +371,7 @@ public final class RemoteNode {
 				c.read(buffer); //What will I need?
 				
 				//Send the listening port
-				c.write((node.getListenPort() + "\n").getBytes());
+				c.write((node.getServer().getCurrentPort() + "\n").getBytes());
 				
 				//Send the local process id and worker class name
 				c.write((ownerTid + "\n").getBytes());
@@ -443,7 +443,7 @@ public final class RemoteNode {
 			//Announce presence
 			if(new String(buffer, "ASCII").trim().equals("I'm not dead yet.")){
 				setState(NodeState.RUNNING);
-				c.write(("I'm here.\n" + node.getListenPort()).getBytes());
+				c.write(("I'm here.\n" + node.getServer().getCurrentPort()).getBytes());
 				
 				//TODO: should this actually be read? It tells whether the other node knew of this one.
 				c.read(buffer); //To ensure flow control

@@ -174,7 +174,6 @@ public final class ConfigManager {
 	 * @param key The key for the setting.
 	 * @return The setting for the given section->key pair, or null if the setting does not exist.
 	 */
-	@SuppressWarnings("unchecked")
 	public synchronized String getSetting(String section, String key){
 		Hashtable<String, String> s = configuration.get(section);
 		if(s == null)
